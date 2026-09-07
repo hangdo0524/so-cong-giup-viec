@@ -451,6 +451,31 @@ table.ov tbody tr.cur td:first-child::after{content:' · đang xem';font-family:
 .modal-foot .btn{flex:1;text-align:center}
 .modal-foot .btn.danger{flex:0 0 auto}
 
+/* dải chọn người — cuộn ngang được trên điện thoại */
+.people{
+  display:flex;gap:7px;align-items:stretch;overflow-x:auto;
+  padding:14px 0 0;margin:0;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+}
+.people::-webkit-scrollbar{display:none}
+.pchip{
+  display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:6px 8px 6px 13px;cursor:pointer;color:var(--ink-2);min-height:38px;
+  font:inherit;font-size:13px;font-weight:600;line-height:1.25;
+}
+.pchip:hover{border-color:var(--line-strong)}
+.pchip .pnm{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
+.pchip .pjob{font-size:10.5px;font-weight:500;color:var(--muted);letter-spacing:.02em}
+.pchip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
+.pchip.on .pjob{color:var(--accent-ink);opacity:.75}
+.pchip .pgear{
+  display:none;width:22px;height:22px;flex:0 0 auto;border-radius:50%;
+  align-items:center;justify-content:center;background:rgba(0,0,0,.06);
+}
+.pchip.on .pgear{display:inline-flex}
+.pchip .pgear svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}
+.pchip.add{border-style:dashed;font-weight:500;color:var(--muted);padding:6px 13px}
+.pchip.add:hover{color:var(--accent);border-color:var(--accent)}
 .linkrow{display:flex;gap:8px;align-items:stretch}
 .linkrow input{
   flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
@@ -495,6 +520,8 @@ textarea.copybox{
   .monthbar .mtitle{font-size:17px}
   .today-btn{height:32px;padding:0 10px;font-size:12.5px}
 
+  .people{padding-top:11px}
+  .pchip{font-size:12.5px;padding:5px 7px 5px 11px}
   .cal{padding:9px}
   .dow{gap:4px}
   .dow span{font-size:10.5px}
@@ -556,6 +583,7 @@ textarea.copybox{
 </header>
 
 <div class="wrap">
+  <div class="people" id="peopleBar"></div>
   <div class="monthbar">
     <button class="nav-btn" id="prevM" aria-label="Tháng trước"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
     <button class="nav-btn" id="nextM" aria-label="Tháng sau"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
@@ -579,7 +607,7 @@ textarea.copybox{
       </section>
 
       <section class="panel">
-        <div class="panel-head"><h2>Tổng quan các tháng</h2></div>
+        <div class="panel-head"><h2>Tổng quan các tháng</h2><span class="spacer"></span><span class="chip" id="ovAll" hidden></span></div>
         <div class="panel-body">
           <div class="tblwrap">
             <table class="ov">
@@ -648,16 +676,18 @@ var FIXED_HOLIDAYS = { '01-01':'Tết Dương lịch', '04-30':'30/4', '05-01':'
 var TYPES = { normal:'Thường', preTet:'Cận Tết', holiday:'Lễ / Tết' };
 var RATINGS = { good:'Tốt', ok:'Bình thường', bad:'Chưa đạt' };
 var DEFAULTS = {
-  schemaV:2,
-  workerName:'', rate:80000, hoursWeekday:3, hoursWeekend:4,
+  schemaV:3,
+  people:[],                 // [{id,name,job,rate,hoursWeekday,hoursWeekend,active}]
+  workerName:'', rate:80000, hoursWeekday:3, hoursWeekend:4,   // giữ lại để chuyển dữ liệu bản cũ
   multNormal:1, multPreTet:1.5, multHoliday:1.2,
   tetStart:'', tetEnd:'', preTetDays:10, defaultStart:''
 };
 
 /* ============ state ============ */
 var settings   = Object.assign({}, DEFAULTS);
-var shiftsByM  = {};   // 'YYYY-MM' -> {month, days:{ '2':{hours,type,rate,mult,note} }}
-var paysByM    = {};   // 'YYYY-MM' -> {month, items:[{id,date,amount,note}]}
+var shiftsByM  = {};   // 'YYYY-MM__<mã người>' -> {month, person, days:{ '2':{hours,type,rate,mult,note} }}
+var paysByM    = {};   // 'YYYY-MM__<mã người>' -> {month, person, items:[{id,date,amount,note}]}
+var curPid     = '';   // người đang xem — riêng từng thiết bị, không đồng bộ
 var view       = { y:new Date().getFullYear(), m:new Date().getMonth() };
 var cloud      = null;
 var mode       = 'local';
@@ -671,7 +701,10 @@ function mkey(y,m){ return y+'-'+pad(m+1); }
 function dkey(y,m,d){ return y+'-'+pad(m+1)+'-'+pad(d); }
 function todayKey(){ var t=new Date(); return dkey(t.getFullYear(),t.getMonth(),t.getDate()); }
 function isWeekend(y,m,d){ var w=new Date(y,m,d).getDay(); return w===0||w===6; }
-function hoursFor(y,m,d){ return isWeekend(y,m,d)?num(settings.hoursWeekend,4):num(settings.hoursWeekday,3); }
+function hoursFor(y,m,d){
+  var p = curPerson();
+  return isWeekend(y,m,d) ? num(p.hoursWeekend,4) : num(p.hoursWeekday,3);
+}
 function num(v,f){ var n=parseFloat(v); return isFinite(n)?n:f; }
 function multOf(t){
   if(t==='holiday') return num(settings.multHoliday,2);
@@ -724,20 +757,84 @@ function monthLabel(mk){ var p=mk.split('-'); return 'Tháng '+parseInt(p[1],10)
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function uid(){ return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
-function getDays(mk){ return (shiftsByM[mk] && shiftsByM[mk].days) || {}; }
-function getItems(mk){ return (paysByM[mk] && paysByM[mk].items) || []; }
+/* ============ nhiều người ============ */
+/* Mỗi người có công việc, giờ làm và đơn giá riêng. Hệ số lễ/cận Tết và ngày Tết
+   thì dùng chung cả sổ. Dữ liệu chấm công tách theo người: khoá 'YYYY-MM__<mã người>',
+   để hai người sửa cùng lúc không đè lên nhau. */
+var LEGACY_PID = 'p1';                 // dữ liệu cũ chưa có người thì gán cho người đầu tiên
+var CUR_KEY    = 'sokong-cur-person';
+
+function people(){
+  if(!Array.isArray(settings.people)) settings.people = [];
+  return settings.people;
+}
+function livePeople(){ return people().filter(function(p){ return p.active !== false; }); }
+function findPerson(id){
+  var a = people();
+  for(var i=0;i<a.length;i++) if(a[i].id===id) return a[i];
+  return null;
+}
+var NOBODY = { id:LEGACY_PID, name:'', job:'', rate:80000, hoursWeekday:3, hoursWeekend:4, active:true };
+function curPerson(){
+  var p = findPerson(curPid);
+  if(p && p.active !== false) return p;
+  var list = livePeople();
+  if(!list.length) list = people();
+  if(list.length){ curPid = list[0].id; try{ localStorage.setItem(CUR_KEY, curPid); }catch(e){} return list[0]; }
+  return NOBODY;
+}
+function setCurPid(id){
+  curPid = id;
+  try{ localStorage.setItem(CUR_KEY, id); }catch(e){}
+}
+function personLabel(p){
+  var n = String(p && p.name || '').trim();
+  return n || 'Chưa đặt tên';
+}
+function curPid_(){ return curPerson().id || LEGACY_PID; }
+function skeyOf(mk, pid){ return mk + '__' + (pid || curPid_()); }
+function splitKey(k){
+  var i = k.indexOf('__');
+  return i<0 ? { mk:k, pid:LEGACY_PID } : { mk:k.slice(0,i), pid:k.slice(i+2) };
+}
+
+function getDays(mk, pid){ var k = skeyOf(mk,pid); return (shiftsByM[k] && shiftsByM[k].days) || {}; }
+function getItems(mk, pid){ var k = skeyOf(mk,pid); return (paysByM[k] && paysByM[k].items) || []; }
+function ensureDays(mk, pid){
+  var k = skeyOf(mk,pid);
+  if(!shiftsByM[k]) shiftsByM[k] = { month:mk, person:(pid||curPid_()), days:{} };
+  if(!shiftsByM[k].days) shiftsByM[k].days = {};
+  return shiftsByM[k].days;
+}
+function ensureItems(mk, pid){
+  var k = skeyOf(mk,pid);
+  if(!paysByM[k]) paysByM[k] = { month:mk, person:(pid||curPid_()), items:[] };
+  if(!Array.isArray(paysByM[k].items)) paysByM[k].items = [];
+  return paysByM[k].items;
+}
+/* các tháng có dữ liệu của người đang chọn, mới nhất trước */
+function monthKeys(pid){
+  var who = pid || curPid_(), keys = {}, now = new Date();
+  keys[mkey(now.getFullYear(), now.getMonth())] = 1;
+  keys[mkey(view.y, view.m)] = 1;
+  for(var a in shiftsByM){ var sa = splitKey(a); if(sa.pid===who && summarize(sa.mk, who).count) keys[sa.mk]=1; }
+  for(var b in paysByM){ var sb = splitKey(b); if(sb.pid===who && getItems(sb.mk, who).length) keys[sb.mk]=1; }
+  return Object.keys(keys).sort().reverse();
+}
 
 /* tổng hợp 1 tháng */
-function summarize(mk){
-  var days = getDays(mk), s = { count:0, hours:0, amount:0, byType:{normal:0,preTet:0,holiday:0}, byRating:{good:0,ok:0,bad:0} };
+function summarize(mk, pid){
+  var pers = pid ? (findPerson(pid)||NOBODY) : curPerson();
+  var defRate = num(pers.rate, 80000);
+  var days = getDays(mk, pid), s = { count:0, hours:0, amount:0, byType:{normal:0,preTet:0,holiday:0}, byRating:{good:0,ok:0,bad:0} };
   for(var d in days){ if(!days.hasOwnProperty(d)) continue;
     var it = days[d];
-    var h = num(it.hours,0), r = num(it.rate,settings.rate), mu = num(it.mult,1);
+    var h = num(it.hours,0), r = num(it.rate,defRate), mu = num(it.mult,1);
     s.count++; s.hours += h; s.amount += h*r*mu;
     s.byType[it.type in s.byType ? it.type : 'normal']++;
     if(it.rating && s.byRating[it.rating]!==undefined) s.byRating[it.rating]++;
   }
-  var paid = 0, items = getItems(mk);
+  var paid = 0, items = getItems(mk, pid);
   for(var i=0;i<items.length;i++) paid += num(items[i].amount,0);
   s.paid = paid; s.left = s.amount - paid; s.payCount = items.length;
   return s;
@@ -752,8 +849,32 @@ function migrateSettings(raw){
     s.preTetDays = 10;
     s.schemaV = 2;
   }
+  if(!Array.isArray(s.people)) s.people = [];
+  if(!s.people.length){                 // bản cũ chỉ có 1 người: chuyển thành người đầu tiên
+    s.people = [{
+      id: LEGACY_PID, name: String(s.workerName||'').trim(), job:'',
+      rate: num(s.rate,80000), hoursWeekday: num(s.hoursWeekday,3), hoursWeekend: num(s.hoursWeekend,4),
+      active: true
+    }];
+  }
+  s.people = s.people.map(function(x){
+    return { id: x.id || uid(), name: String(x.name||''), job: String(x.job||''),
+             rate: num(x.rate,80000), hoursWeekday: num(x.hoursWeekday,3),
+             hoursWeekend: num(x.hoursWeekend,4), active: x.active !== false };
+  });
+  s.schemaV = 3;
   delete s.preTetFrom; delete s.preTetTo;
   return s;
+}
+/* Bản cũ đánh khoá theo tháng ('2026-09'). Bản mới thêm mã người ('2026-09__p1').
+   Gặp khoá cũ thì gán cho người đầu tiên; nếu đã có bản mới thì bản mới thắng. */
+function normStore(raw){
+  var old = {}, cur = {};
+  for(var id in raw){ if(!raw.hasOwnProperty(id)) continue;
+    if(id.indexOf('__') < 0) old[id + '__' + LEGACY_PID] = raw[id];
+    else cur[id] = raw[id];
+  }
+  return Object.assign({}, old, cur);
 }
 function saveLocal(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify({settings:settings, shifts:shiftsByM, payments:paysByM})); }catch(e){}
@@ -763,8 +884,8 @@ function loadLocal(){
     var raw = localStorage.getItem(LS_KEY); if(!raw) return false;
     var o = JSON.parse(raw);
     if(o.settings) settings = migrateSettings(o.settings);
-    if(o.shifts) shiftsByM = o.shifts;
-    if(o.payments) paysByM = o.payments;
+    if(o.shifts) shiftsByM = normStore(o.shifts);
+    if(o.payments) paysByM = normStore(o.payments);
     return true;
   }catch(e){ return false; }
 }
@@ -774,8 +895,14 @@ function pushCloud(path, data){          // lỗi cloud không được chặn t
   catch(e){ cloudErr(e); }
 }
 function pushSettings(){ saveLocal(); pushCloud('config/settings', Object.assign({}, settings)); }
-function pushMonth(mk){ saveLocal(); pushCloud('shifts/'+mk, { month:mk, days:getDays(mk) }); }
-function pushPays(mk){ saveLocal(); pushCloud('payments/'+mk, { month:mk, items:getItems(mk) }); }
+function pushMonth(mk, pid){
+  saveLocal(); var w = pid || curPid_();
+  pushCloud('shifts/'+skeyOf(mk,w), { month:mk, person:w, days:getDays(mk,w) });
+}
+function pushPays(mk, pid){
+  saveLocal(); var w = pid || curPid_();
+  pushCloud('payments/'+skeyOf(mk,w), { month:mk, person:w, items:getItems(mk,w) });
+}
 function cloudErr(e){
   var c = e && e.code;
   if(c==='quota_exceeded') toast('Kho dữ liệu đã đầy — xoá bớt tháng cũ.');
@@ -793,10 +920,27 @@ function paintSync(){
     : 'Dữ liệu lưu trong trình duyệt của thiết bị này.';
 }
 function paintWho(){
-  var n = (settings.workerName||'').trim();
+  var p = curPerson(), n = String(p.name||'').trim(), j = String(p.job||'').trim();
   document.getElementById('whoLabel').textContent = n ? '· '+n : '· chưa đặt tên';
   document.getElementById('foot').textContent =
-    'Đơn giá '+moneyD(settings.rate)+'/giờ · T2–T6 '+num(settings.hoursWeekday,3)+'h · T7–CN '+num(settings.hoursWeekend,4)+'h · trả công cuối tháng';
+    (j ? j+' · ' : '') + 'Đơn giá '+moneyD(p.rate)+'/giờ · T2–T6 '+num(p.hoursWeekday,3)+'h · T7–CN '+num(p.hoursWeekend,4)+'h · trả công cuối tháng';
+}
+
+var GEAR_SVG = '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+function paintPeople(){
+  var bar = document.getElementById('peopleBar'), list = livePeople(), cur = curPerson();
+  var html = '';
+  list.forEach(function(p){
+    var on = p.id === cur.id, j = String(p.job||'').trim();
+    html += '<button class="pchip'+(on?' on':'')+'" data-pid="'+esc(p.id)+'" aria-pressed="'+on+'">'
+         +    '<span class="pnm"><span>'+esc(personLabel(p))+'</span>'
+         +      (j ? '<span class="pjob">'+esc(j)+'</span>' : '')
+         +    '</span>'
+         +    '<span class="pgear" data-edit-pid="'+esc(p.id)+'" role="button" tabindex="0" aria-label="Sửa thông tin '+esc(personLabel(p))+'">'+GEAR_SVG+'</span>'
+         +  '</button>';
+  });
+  html += '<button class="pchip add" id="pAdd" aria-label="Thêm người">+ Thêm người</button>';
+  bar.innerHTML = html;
 }
 
 function paintCalendar(){
@@ -848,7 +992,7 @@ function paintSummary(){
   var total = new Date(view.y,view.m+1,0).getDate(), plan = 0;
   for(var d=1; d<=total; d++){
     var ds = dkey(view.y,view.m,d);
-    plan += hoursFor(view.y,view.m,d) * num(settings.rate,0) * multOf(autoType(ds));
+    plan += hoursFor(view.y,view.m,d) * num(curPerson().rate,0) * multOf(autoType(ds));
   }
   document.getElementById('sumSub').textContent = s.count
     ? 'Dự kiến nếu làm đủ cả tháng: '+moneyD(plan)
@@ -913,13 +1057,8 @@ function paintReviews(){
 }
 
 function paintOverview(){
-  var keys = {}, now = new Date();
-  /* luôn hiện tháng hiện tại và tháng đang xem, kể cả khi chưa chấm buổi nào */
-  keys[mkey(now.getFullYear(), now.getMonth())] = 1;
-  keys[mkey(view.y, view.m)] = 1;
-  for(var a in shiftsByM) if(summarize(a).count) keys[a]=1;
-  for(var b in paysByM) if(getItems(b).length) keys[b]=1;
-  var list = Object.keys(keys).sort().reverse();
+  /* chỉ các tháng của người đang chọn; luôn có tháng hiện tại và tháng đang xem */
+  var list = monthKeys();
   var body = document.getElementById('ovBody'), viewMk = mkey(view.y, view.m);
   var html='';
   list.forEach(function(mk){
@@ -931,9 +1070,19 @@ function paintOverview(){
     html += '<tr class="'+(mk===viewMk?'cur':'')+'" data-mk="'+mk+'"><td>'+monthLabel(mk)+'</td><td>'+s.count+'</td><td>'+money(s.amount)+'</td><td>'+money(s.paid)+'</td><td>'+pill+'</td></tr>';
   });
   body.innerHTML = html;
+
+  /* tổng của tất cả mọi người trong tháng đang xem — chỉ hiện khi có từ 2 người trở lên */
+  var all = 0, n = 0;
+  people().forEach(function(p){
+    var sp = summarize(viewMk, p.id);
+    if(sp.count){ all += sp.amount; n++; }
+  });
+  var el = document.getElementById('ovAll');
+  el.hidden = n < 2;
+  el.textContent = n < 2 ? '' : ('Cả nhà tháng '+(view.m+1)+': '+moneyD(all)+' · '+n+' người');
 }
 
-function paintAll(){ paintWho(); paintCalendar(); paintSummary(); paintReviews(); paintPayments(); paintOverview(); }
+function paintAll(){ paintPeople(); paintWho(); paintCalendar(); paintSummary(); paintReviews(); paintPayments(); paintOverview(); }
 
 /* ============ thao tác chấm công ============ */
 /* ngày đã qua thì đã chấm rồi là khoá: chạm vào chỉ mở chi tiết, tránh xoá nhầm */
@@ -941,16 +1090,14 @@ function isLocked(ds, rec){ return !!rec && ds < todayKey(); }
 
 function toggleDay(d){
   var mk = mkey(view.y,view.m), ds = dkey(view.y,view.m,d);
-  if(!shiftsByM[mk]) shiftsByM[mk] = { month:mk, days:{} };
-  if(!shiftsByM[mk].days) shiftsByM[mk].days = {};
-  var days = shiftsByM[mk].days, k = String(d);
+  var days = ensureDays(mk), k = String(d);
   if(days[k]){
     if(isLocked(ds, days[k])){ openDay(d); return; }   // muốn sửa/xoá thì vào chi tiết
     delete days[k];
   }
   else{
     var t = autoType(ds), h = hoursFor(view.y,view.m,d), st = hhmm(settings.defaultStart);
-    days[k] = { hours:h, type:t, rate:num(settings.rate,80000), mult:multOf(t),
+    days[k] = { hours:h, type:t, rate:num(curPerson().rate,80000), mult:multOf(t),
                 start:st, end: st ? addMins(st, h*60) : '', note:'' };
   }
   pushMonth(mk); paintCalendar(); paintSummary(); paintReviews(); paintOverview();
@@ -989,11 +1136,11 @@ function openDay(d){
   var isNew = !rec;
   if(isNew){                                   // ngày chưa chấm: mở bản nháp theo mặc định
     var at = autoType(dkey(view.y,view.m,d)), dh = hoursFor(view.y,view.m,d), ds0 = hhmm(settings.defaultStart);
-    rec = { hours:dh, type:at, rate:num(settings.rate,80000), mult:multOf(at),
+    rec = { hours:dh, type:at, rate:num(curPerson().rate,80000), mult:multOf(at),
             start:ds0, end: ds0 ? addMins(ds0, dh*60) : '', note:'', rating:'', review:'' };
   }
   var cur = {
-    hours:num(rec.hours,0), type:rec.type||'normal', rate:num(rec.rate,settings.rate),
+    hours:num(rec.hours,0), type:rec.type||'normal', rate:num(rec.rate,curPerson().rate),
     start:hhmm(rec.start), end:hhmm(rec.end),
     note:rec.note||'', rating:RATINGS[rec.rating]?rec.rating:'', review:rec.review||''
   };
@@ -1044,10 +1191,8 @@ function openDay(d){
     root.querySelector('#fSave').addEventListener('click', function(){
       var h = num(fH.value,0);
       if(h<=0){ toast('Số giờ phải lớn hơn 0.'); fH.focus(); return; }
-      if(!shiftsByM[mk]) shiftsByM[mk] = { month:mk, days:{} };
-      if(!shiftsByM[mk].days) shiftsByM[mk].days = {};
-      shiftsByM[mk].days[k] = {
-        hours:h, type:cur.type, rate:num(fR.value,settings.rate), mult:multOf(cur.type),
+      ensureDays(mk)[k] = {
+        hours:h, type:cur.type, rate:num(fR.value,curPerson().rate), mult:multOf(cur.type),
         start:hhmm(fS.value), end:hhmm(fE.value),
         note:fN.value.trim(), rating:cur.rating, review:fV.value.trim()
       };
@@ -1055,7 +1200,7 @@ function openDay(d){
     });
     var fDel = root.querySelector('#fDel');
     if(fDel) fDel.addEventListener('click', function(){
-      if(shiftsByM[mk] && shiftsByM[mk].days) delete shiftsByM[mk].days[k];
+      delete ensureDays(mk)[k];
       closeModal(); pushMonth(mk); paintCalendar(); paintSummary(); paintReviews(); paintOverview();
     });
     var fCancel = root.querySelector('#fCancel');
@@ -1118,8 +1263,7 @@ function openPay(existingId){
 
   var monthOpts = '';
   var seen = {}; seen[mk]=1;
-  for(var a in shiftsByM) seen[a]=1;
-  for(var b in paysByM) seen[b]=1;
+  monthKeys().forEach(function(x){ seen[x]=1; });
   Object.keys(seen).sort().reverse().forEach(function(k){
     monthOpts += '<option value="'+k+'"'+(k===mk?' selected':'')+'>'+monthLabel(k)+'</option>';
   });
@@ -1149,12 +1293,10 @@ function openPay(existingId){
       if(!date){ toast('Chọn ngày trả.'); return; }
 
       if(rec){
-        var arr = paysByM[mk].items.filter(function(p){ return p.id!==rec.id; });
-        paysByM[mk].items = arr; pushPays(mk);
+        var arr = ensureItems(mk).filter(function(p){ return p.id!==rec.id; });
+        paysByM[skeyOf(mk)].items = arr; pushPays(mk);
       }
-      if(!paysByM[target]) paysByM[target] = { month:target, items:[] };
-      if(!paysByM[target].items) paysByM[target].items = [];
-      paysByM[target].items.push({ id:(rec?rec.id:uid()), date:date, amount:amount, note:root.querySelector('#pN').value.trim() });
+      ensureItems(target).push({ id:(rec?rec.id:uid()), date:date, amount:amount, note:root.querySelector('#pN').value.trim() });
       closeModal(); pushPays(target);
       paintPayments(); paintSummary(); paintOverview();
       toast('Đã ghi nhận '+moneyD(amount)+'.');
@@ -1162,21 +1304,121 @@ function openPay(existingId){
 
     var del = root.querySelector('#pDel');
     if(del) del.addEventListener('click', function(){
-      paysByM[mk].items = paysByM[mk].items.filter(function(p){ return p.id!==rec.id; });
+      paysByM[skeyOf(mk)].items = ensureItems(mk).filter(function(p){ return p.id!==rec.id; });
       closeModal(); pushPays(mk); paintPayments(); paintSummary(); paintOverview();
+    });
+  });
+}
+
+/* --- người làm --- */
+function personUsage(pid){
+  var n = 0, k;
+  for(var a in shiftsByM){ if(splitKey(a).pid!==pid) continue;
+    var days = shiftsByM[a].days || {};
+    for(k in days) if(days.hasOwnProperty(k)) n++;
+  }
+  for(var b in paysByM){ if(splitKey(b).pid!==pid) continue;
+    var it = paysByM[b].items; if(Array.isArray(it)) n += it.length;
+  }
+  return n;
+}
+/* Xoá hẳn thì dọn luôn số liệu của người đó. Cloud không có lệnh xoá, nên ghi đè
+   bằng bản rỗng để máy khác cũng sạch theo, rồi mới bỏ khoá trên máy này. */
+function wipePerson(pid){
+  var sk = [], pk = [], a, b;
+  for(a in shiftsByM) if(splitKey(a).pid===pid) sk.push(a);
+  for(b in paysByM)   if(splitKey(b).pid===pid) pk.push(b);
+  sk.forEach(function(k){ var mk=splitKey(k).mk;
+    shiftsByM[k] = { month:mk, person:pid, days:{} }; pushMonth(mk,pid); delete shiftsByM[k]; });
+  pk.forEach(function(k){ var mk=splitKey(k).mk;
+    paysByM[k] = { month:mk, person:pid, items:[] }; pushPays(mk,pid); delete paysByM[k]; });
+  settings.people = people().filter(function(x){ return x.id!==pid; });
+  if(curPid===pid) curPid = '';
+  saveLocal();
+}
+
+function openPerson(id){
+  var p = id ? findPerson(id) : null;
+  var d = p || { name:'', job:'', rate:num(settings.rate,80000), hoursWeekday:3, hoursWeekend:4 };
+  var used = p ? personUsage(p.id) : 0;
+  var lastOne = livePeople().length <= 1;
+
+  var foot;
+  if(!p) foot = '<button class="btn ghost" id="kCancel">Huỷ</button><button class="btn primary" id="kSave">Thêm</button>';
+  else if(lastOne) foot = '<button class="btn primary" id="kSave">Lưu</button>';
+  else if(used)    foot = '<button class="btn danger" id="kStop">Ngưng làm</button><button class="btn primary" id="kSave">Lưu</button>';
+  else             foot = '<button class="btn danger" id="kDel">Xoá</button><button class="btn primary" id="kSave">Lưu</button>';
+
+  var html =
+    '<div class="field"><label>Tên</label><input type="text" id="kName" value="'+esc(d.name||'')+'" placeholder="vd: Cô Lan"></div>'
+  + '<div class="field"><label>Công việc</label><input type="text" id="kJob" value="'+esc(d.job||'')+'" placeholder="vd: dọn nhà + nấu ăn"></div>'
+  + '<div class="field"><label>Đơn giá (đ/giờ)</label><input type="number" id="kRate" step="1000" min="0" value="'+num(d.rate,80000)+'"></div>'
+  + '<div class="two">'
+  +   '<div class="field"><label>Giờ mặc định T2–T6</label><input type="number" id="kHw" step="0.5" min="0" value="'+num(d.hoursWeekday,3)+'"></div>'
+  +   '<div class="field"><label>Giờ mặc định T7–CN</label><input type="number" id="kHe" step="0.5" min="0" value="'+num(d.hoursWeekend,4)+'"></div>'
+  + '</div>'
+  + '<p class="hint">Mỗi người một đơn giá và số giờ riêng. Sửa ở đây chỉ áp dụng cho những ngày chấm mới — ngày đã chấm giữ nguyên số tiền cũ.</p>'
+  + (p && used ? '<p class="hint">Đã chấm '+used+' mục cho người này.'+(lastOne?'':' Còn số liệu thì chỉ ngưng được, không xoá — để bảng kê cũ không mất.')+'</p>' : '')
+  + (p && lastOne ? '<p class="hint">Sổ cần ít nhất một người đang làm, nên chưa ngưng hay xoá được người này.</p>' : '')
+  + '<div class="modal-foot">'+foot+'</div>';
+
+  openModal(p ? 'Sửa thông tin' : 'Thêm người làm', html, function(root){
+    var cancel = root.querySelector('#kCancel');
+    if(cancel) cancel.addEventListener('click', closeModal);
+
+    root.querySelector('#kSave').addEventListener('click', function(){
+      var v = {
+        name: root.querySelector('#kName').value.trim(),
+        job:  root.querySelector('#kJob').value.trim(),
+        rate: num(root.querySelector('#kRate').value, 80000),
+        hoursWeekday: num(root.querySelector('#kHw').value, 3),
+        hoursWeekend: num(root.querySelector('#kHe').value, 4)
+      };
+      if(p){
+        p.name=v.name; p.job=v.job; p.rate=v.rate;
+        p.hoursWeekday=v.hoursWeekday; p.hoursWeekend=v.hoursWeekend;
+      } else {
+        var np = { id:uid(), name:v.name, job:v.job, rate:v.rate,
+                   hoursWeekday:v.hoursWeekday, hoursWeekend:v.hoursWeekend, active:true };
+        people().push(np); setCurPid(np.id);
+      }
+      closeModal(); pushSettings(); paintAll();
+      toast(p ? 'Đã lưu.' : 'Đã thêm '+(v.name || 'người mới')+'.');
+    });
+
+    var stop = root.querySelector('#kStop');
+    if(stop) stop.addEventListener('click', function(){
+      p.active = false;
+      if(curPid===p.id) curPid = '';
+      closeModal(); pushSettings(); paintAll();
+      toast('Đã ngưng. Số liệu cũ vẫn còn — bật lại trong Cài đặt.');
+    });
+
+    var del = root.querySelector('#kDel');
+    if(del) del.addEventListener('click', function(){
+      wipePerson(p.id);
+      closeModal(); pushSettings(); paintAll();
+      toast('Đã xoá khỏi sổ.');
     });
   });
 }
 
 /* --- cài đặt --- */
 function openSettings(){
+  var paused = people().filter(function(x){ return x.active === false; });
+  var pausedHtml = '';
+  if(paused.length){
+    pausedHtml = '<div class="field"><label>Người đã ngưng làm</label>';
+    paused.forEach(function(x){
+      pausedHtml += '<div class="linkrow" style="margin-bottom:6px"><input type="text" readonly value="'
+        + esc(personLabel(x) + (String(x.job||'').trim() ? ' · '+x.job : '')) + '">'
+        + '<button class="btn sm" type="button" data-back="'+esc(x.id)+'">Làm lại</button></div>';
+    });
+    pausedHtml += '<p class="hint">Số liệu cũ vẫn còn nguyên, bật lại là thấy.</p></div>';
+  }
+
   var html =
-    '<div class="field"><label>Tên người giúp việc</label><input type="text" id="sName" value="'+esc(settings.workerName)+'" placeholder="vd: Cô Lan"></div>'
-  + '<div class="field"><label>Đơn giá gốc (đ/giờ)</label><input type="number" id="sRate" step="1000" min="0" value="'+num(settings.rate,80000)+'"></div>'
-  + '<div class="two">'
-  +   '<div class="field"><label>Giờ mặc định T2–T6</label><input type="number" id="sHw" step="0.5" min="0" value="'+num(settings.hoursWeekday,3)+'"></div>'
-  +   '<div class="field"><label>Giờ mặc định T7–CN</label><input type="number" id="sHe" step="0.5" min="0" value="'+num(settings.hoursWeekend,4)+'"></div>'
-  + '</div>'
+    '<p class="hint">Tên, công việc, đơn giá và giờ làm nay đặt riêng cho từng người — bấm ✎ cạnh tên người ở đầu trang.</p>'
   + '<div class="field"><label>Hệ số theo loại ngày</label><div class="two" style="gap:8px">'
   +   '<input type="number" id="sM1" step="0.05" min="0" value="'+num(settings.multNormal,1)+'" aria-label="Hệ số ngày thường">'
   +   '<input type="number" id="sM2" step="0.05" min="0" value="'+num(settings.multPreTet,1.5)+'" aria-label="Hệ số cận Tết">'
@@ -1193,7 +1435,8 @@ function openSettings(){
   +   '<div class="field"><label>Giờ bắt đầu mặc định</label><input type="time" id="sDS" value="'+esc(hhmm(settings.defaultStart))+'"></div>'
   + '</div>'
   + '<p class="hint" id="sTetHint"></p>'
-  + '<p class="hint">Đổi đơn giá hoặc hệ số chỉ áp dụng cho những ngày chấm mới. Ngày đã chấm giữ nguyên số tiền cũ — mở ô ngày đó để sửa nếu cần.</p>'
+  + '<p class="hint">Đổi hệ số chỉ áp dụng cho những ngày chấm mới. Ngày đã chấm giữ nguyên số tiền cũ — mở ô ngày đó để sửa nếu cần.</p>'
+  + pausedHtml
   + (window.FIREBASE_CONFIG ? (
       '<div class="field"><label>Dùng chung sổ với điện thoại</label>'
     + '<p class="hint">Mở camera điện thoại rồi quét mã dưới đây — điện thoại sẽ vào đúng sổ này.</p>'
@@ -1232,12 +1475,17 @@ function openSettings(){
       } else { try{ document.execCommand('copy'); done(); }catch(e){ toast('Chưa chép được — chị bấm giữ để chép tay nhé.'); } }
     });
 
+    Array.prototype.slice.call(root.querySelectorAll('[data-back]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var pp = findPerson(b.getAttribute('data-back'));
+        if(pp){ pp.active = true; setCurPid(pp.id); }
+        closeModal(); pushSettings(); paintAll();
+        toast('Đã bật lại '+(pp ? personLabel(pp) : 'người này')+'.');
+      });
+    });
+
     root.querySelector('#sCancel').addEventListener('click', closeModal);
     root.querySelector('#sSave').addEventListener('click', function(){
-      settings.workerName  = root.querySelector('#sName').value.trim();
-      settings.rate        = num(root.querySelector('#sRate').value,80000);
-      settings.hoursWeekday= num(root.querySelector('#sHw').value,3);
-      settings.hoursWeekend= num(root.querySelector('#sHe').value,4);
       settings.multNormal  = num(root.querySelector('#sM1').value,1);
       settings.multPreTet  = num(root.querySelector('#sM2').value,1.5);
       settings.multHoliday = num(root.querySelector('#sM3').value,1.2);
@@ -1257,15 +1505,15 @@ function openSettings(){
 /* --- bảng kê --- */
 function buildStatement(){
   var mk = mkey(view.y,view.m), s = summarize(mk), days = getDays(mk);
-  var name = (settings.workerName||'').trim();
+  var per = curPerson(), name = String(per.name||'').trim(), job = String(per.job||'').trim();
   var L = [];
-  L.push('BẢNG CÔNG THÁNG '+(view.m+1)+'/'+view.y + (name?' — '+name:''));
+  L.push('BẢNG CÔNG THÁNG '+(view.m+1)+'/'+view.y + (name?' — '+name:'') + (job?' ('+job+')':''));
   L.push('────────────────────────');
   var nums = Object.keys(days).map(Number).sort(function(a,b){ return a-b; });
   if(!nums.length) L.push('(chưa chấm công ngày nào)');
   nums.forEach(function(d){
     var it = days[String(d)];
-    var h = num(it.hours,0), r = num(it.rate,settings.rate), mu = num(it.mult,1);
+    var h = num(it.hours,0), r = num(it.rate,per.rate), mu = num(it.mult,1);
     var w = DOW_VN[new Date(view.y,view.m,d).getDay()].replace('Thứ ','T').replace('Chủ nhật','CN');
     var sp = timeSpan(it);
     L.push(pad(d)+'/'+pad(view.m+1)+' '+w+(sp?' '+sp:'')+' · '+h+'h × '+money(r)
@@ -1341,12 +1589,34 @@ document.getElementById('todayBtn').addEventListener('click', function(){
   var t = new Date(); view.y=t.getFullYear(); view.m=t.getMonth();
   paintCalendar(); paintSummary(); paintReviews(); paintPayments(); paintOverview();
 });
+/* Dải chọn người: bấm chip để đổi người, bấm ✎ (hoặc bấm lại người đang xem) để sửa. */
+function peopleBarHit(target){
+  var g = target.closest('[data-edit-pid]');
+  if(g){ openPerson(g.getAttribute('data-edit-pid')); return true; }
+  if(target.closest('#pAdd')){ openPerson(null); return true; }
+  var c = target.closest('[data-pid]');
+  if(!c) return false;
+  var id = c.getAttribute('data-pid');
+  if(id === curPerson().id) openPerson(id);
+  else { setCurPid(id); paintAll(); }
+  return true;
+}
+document.getElementById('peopleBar').addEventListener('click', function(e){
+  peopleBarHit(e.target);
+});
+document.getElementById('peopleBar').addEventListener('keydown', function(e){
+  if(e.key!=='Enter' && e.key!==' ') return;
+  if(!e.target.closest('[data-edit-pid]')) return;
+  e.preventDefault(); peopleBarHit(e.target);
+});
+
 document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnPay').addEventListener('click', function(){ openPay(null); });
 document.getElementById('btnCopy').addEventListener('click', openStatement);
 
 /* ============ khởi động ============ */
 loadLocal();
+try{ curPid = localStorage.getItem(CUR_KEY) || ''; }catch(e){}
 paintSync();
 paintAll();
 
@@ -1439,11 +1709,12 @@ function wireCloud(db, label){
 
   db.collection('shifts').onSnapshot(function(snap){
     var next = {};
-    snap.docs.forEach(function(d){ var v=d.data()||{}; next[d.id] = { month:d.id, days:v.days||{} }; });
+    snap.docs.forEach(function(d){ var v=d.data()||{}; next[d.id] = { month:(v.month||splitKey(d.id).mk), person:(v.person||splitKey(d.id).pid), days:v.days||{} }; });
+    next = normStore(next);
     if(firstSh){
       firstSh = false;
       if(snap.empty && Object.keys(shiftsByM).length){        // cloud trống, máy có sẵn → đẩy lên
-        for(var k in shiftsByM) pushMonth(k);
+        for(var k in shiftsByM){ var sp = splitKey(k); pushMonth(sp.mk, sp.pid); }
         return;
       }
     }
@@ -1452,11 +1723,12 @@ function wireCloud(db, label){
 
   db.collection('payments').onSnapshot(function(snap){
     var next = {};
-    snap.docs.forEach(function(d){ var v=d.data()||{}; next[d.id] = { month:d.id, items:Array.isArray(v.items)?v.items:[] }; });
+    snap.docs.forEach(function(d){ var v=d.data()||{}; next[d.id] = { month:(v.month||splitKey(d.id).mk), person:(v.person||splitKey(d.id).pid), items:Array.isArray(v.items)?v.items:[] }; });
+    next = normStore(next);
     if(firstP){
       firstP = false;
       if(snap.empty && Object.keys(paysByM).length){
-        for(var k in paysByM) pushPays(k);
+        for(var k in paysByM){ var sp = splitKey(k); pushPays(sp.mk, sp.pid); }
         return;
       }
     }
