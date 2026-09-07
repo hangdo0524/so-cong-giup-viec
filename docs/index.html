@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0e1a15">
 <meta name="description" content="Sổ chấm công giúp việc theo giờ: số buổi, hệ số lễ/cận Tết, nhận xét và lịch sử trả lương.">
 <style>*{box-sizing:border-box}html,body{margin:0}body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f8f6}img{max-width:100%}[hidden]{display:none!important}</style>
-<script src="firebase-config.js?v=20260907101028"></script>
+<script src="firebase-config.js?v=20260907105639"></script>
 <title>Sổ Công Giúp Việc</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -466,6 +466,14 @@ table.ov tbody tr.cur td:first-child::after{content:' · đang xem';font-family:
   padding:9px 11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2);
 }
 .linkrow .btn{flex:0 0 auto}
+
+/* Nền trắng cố định cả 2 chế độ sáng/tối — camera cần vùng trắng quanh mã mới quét được */
+.qrbox{
+  display:flex;justify-content:center;align-items:center;
+  padding:12px;margin:2px 0 10px;background:#fff;
+  border:1px solid var(--line);border-radius:12px;
+}
+.qrbox canvas{display:block;width:196px;height:196px;max-width:100%}
 
 textarea.copybox{
   width:100%;min-height:230px;background:var(--surface-2);border:1px solid var(--line);
@@ -1196,10 +1204,12 @@ function openSettings(){
   + '<p class="hint" id="sTetHint"></p>'
   + '<p class="hint">Đổi đơn giá hoặc hệ số chỉ áp dụng cho những ngày chấm mới. Ngày đã chấm giữ nguyên số tiền cũ — mở ô ngày đó để sửa nếu cần.</p>'
   + (window.FIREBASE_CONFIG ? (
-      '<div class="field"><label>Liên kết thiết bị</label>'
+      '<div class="field"><label>Dùng chung sổ với điện thoại</label>'
+    + '<p class="hint">Mở camera điện thoại rồi quét mã dưới đây — điện thoại sẽ vào đúng sổ này.</p>'
+    + '<div class="qrbox"><canvas id="sQR" width="196" height="196" role="img" aria-label="Mã QR để mở sổ này trên điện thoại"></canvas></div>'
     + '<div class="linkrow"><input type="text" id="sLink" readonly value="'+esc(bookLink())+'">'
     + '<button class="btn sm" id="sCopyLink" type="button">Chép</button></div>'
-    + '<p class="hint">Mở đúng link này trên điện thoại thì hai máy dùng chung một sổ. Ai có link là xem và sửa được sổ, nên đừng đăng công khai.</p></div>'
+    + '<p class="hint">Hoặc chép link rồi gửi sang điện thoại. Ai có link là xem và sửa được sổ, nên đừng đăng công khai.</p></div>'
     ) : '')
   + '<div class="modal-foot"><button class="btn ghost" id="sCancel">Huỷ</button><button class="btn primary" id="sSave">Lưu cài đặt</button></div>';
 
@@ -1218,6 +1228,9 @@ function openSettings(){
         : 'Ngày '+fmtD(ts)+' nếu vẫn làm thì tính hệ số Lễ. ';
       hint.textContent = t1 + t2 + base;
     }
+    var qrEl = root.querySelector('#sQR');
+    if(qrEl) drawQR(qrEl, bookLink());
+
     var cpLink = root.querySelector('#sCopyLink');
     if(cpLink) cpLink.addEventListener('click', function(){
       var f = root.querySelector('#sLink');
@@ -1366,6 +1379,30 @@ function bookId(){
   return id;
 }
 function bookLink(){ return location.origin + location.pathname + '#s=' + bookId(); }
+
+/* Vẽ mã QR ngay trên máy. Không dùng dịch vụ tạo QR bên ngoài, vì link chứa mã sổ —
+   gửi link đi là gửi luôn chìa khoá sổ. Thư viện chỉ tải khi thật sự mở Cài đặt. */
+var qrLib = null;
+function loadQR(){
+  if(qrLib) return qrLib;
+  qrLib = new Promise(function(res, rej){
+    if(window.QRious){ res(window.QRious); return; }
+    var sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
+    sc.onload  = function(){ window.QRious ? res(window.QRious) : rej(new Error('QRious missing')); };
+    sc.onerror = function(){ rej(new Error('load failed')); };
+    document.head.appendChild(sc);
+  });
+  return qrLib;
+}
+function drawQR(canvas, text){
+  loadQR().then(function(Q){
+    new Q({ element:canvas, value:text, size:196, level:'M', background:'#ffffff', foreground:'#111111', padding:6 });
+  }, function(){
+    var box = canvas.parentNode;
+    if(box) box.innerHTML = '<p class="hint" style="margin:0;color:#444">Chưa tải được mã QR (mạng chặn). Chị dùng nút Chép link bên dưới nhé.</p>';
+  });
+}
 
 /* Bọc Firestore lại cho giống hệt API cloud của Artifact, phần còn lại của app không phải sửa */
 function firestoreCloud(fs, db, base){
