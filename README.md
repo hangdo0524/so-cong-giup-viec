@@ -6,6 +6,9 @@ authors:
   - date: 2026-09-05
     email: "hang.do@difisoft.com"
     change: "Khởi tạo app chấm công giúp việc theo giờ — lịch tháng, hệ số lễ/cận Tết, nhận xét từng buổi, sổ trả lương; kèm hướng dẫn build và deploy"
+  - date: 2026-09-07
+    email: "hang.do@difisoft.com"
+    change: "Khoá ngày quá khứ đã chấm — chạm trên lịch chỉ mở chi tiết, muốn sửa hoặc xoá phải vào bảng chi tiết"
 ---
 
 # Sổ Công Giúp Việc
@@ -18,7 +21,7 @@ Web chấm công cho người giúp việc trả theo giờ. Làm ngày nào tí
 - **Giờ vào / giờ ra** — ghi giờ bắt đầu và kết thúc, tự tính số giờ.
 - **Hệ số** — thường ×1, ngày lễ ×1.2, 10 ngày cận Tết ×1.5. Sửa được trong Cài đặt.
 - **Nhận xét từng buổi** — đánh giá tốt / bình thường / chưa đạt kèm ghi chú.
-- **Sửa ngày quá khứ** — mở lại bất kỳ ngày nào để chỉnh hoặc xoá.
+- **Ngày quá khứ được khoá** — ngày đã qua mà đã chấm công thì chạm trên lịch chỉ **mở bảng chi tiết**, không bỏ chấm nữa. Muốn sửa hoặc xoá phải làm trong bảng chi tiết. Ngày hôm nay và ngày sắp tới vẫn chạm lại để bỏ chấm nhanh.
 - **Sổ trả lương** — ghi từng lần trả, theo dõi còn thiếu bao nhiêu.
 - **Tổng quan các tháng** — luôn hiện tháng hiện tại; bấm vào một tháng để nhảy tới tháng đó.
 

@@ -235,6 +235,11 @@ button{cursor:pointer}
 .cellwrap.is-normal .edit{color:var(--accent-ink)}
 .cellwrap.unset .edit{color:var(--muted);opacity:.34}
 .cellwrap.unset .edit:hover{opacity:.9}
+.cellwrap.locked .edit{opacity:1}                    /* ngày đã khoá: chỉ rõ đường vào chi tiết */
+.cellwrap.locked .cell.on::after{
+  content:'';position:absolute;left:5px;bottom:5px;width:5px;height:5px;border-radius:50%;
+  background:currentColor;opacity:.3;
+}
 
 .legend{
   display:flex;flex-wrap:wrap;gap:4px 14px;
@@ -739,11 +744,12 @@ function paintCalendar(){
     var on = !!rec;
     var t = on ? (rec.type||'normal') : autoType(ds);
     var h = on ? num(rec.hours,0) : hoursFor(y,m,d);
-    var cls = 'cell'+(on?(' on t-'+t):(' ghost g-'+t))+(ds===tk?' today':'');
+    var lock = on && ds < tk;
+    var cls = 'cell'+(on?(' on t-'+t):(' ghost g-'+t))+(ds===tk?' today':'')+(lock?' locked':'');
     var hol = FIXED_HOLIDAYS[ds.slice(5)];
     var sp = on ? timeSpan(rec) : '';
-    var lab = longDate(y,m,d)+' — '+(on?('đã chấm '+h+' giờ'+(sp?' ('+sp+')':'')+', '+TYPES[t]+(RATINGS[rec.rating]?', nhận xét: '+RATINGS[rec.rating]:'')):('chưa chấm, dự kiến '+h+' giờ'));
-    html += '<div class="cellwrap is-'+t+(on?'':' unset')+'">'
+    var lab = longDate(y,m,d)+' — '+(on?('đã chấm '+h+' giờ'+(sp?' ('+sp+')':'')+', '+TYPES[t]+(RATINGS[rec.rating]?', nhận xét: '+RATINGS[rec.rating]:'')+(lock?'. Ngày đã qua — mở chi tiết để sửa hoặc xoá':'')):('chưa chấm, dự kiến '+h+' giờ'));
+    html += '<div class="cellwrap is-'+t+(on?'':' unset')+(lock?' locked':'')+'">'
           +   '<button class="'+cls+'" data-d="'+d+'" aria-pressed="'+on+'" aria-label="'+esc(lab)+'"'+(hol?' title="'+esc(hol)+'"':'')+'>'
           +     '<span class="dnum">'+d+'</span>'
           +     '<span class="dh">'+h+'h</span>'
@@ -856,12 +862,18 @@ function paintOverview(){
 function paintAll(){ paintWho(); paintCalendar(); paintSummary(); paintReviews(); paintPayments(); paintOverview(); }
 
 /* ============ thao tác chấm công ============ */
+/* ngày đã qua thì đã chấm rồi là khoá: chạm vào chỉ mở chi tiết, tránh xoá nhầm */
+function isLocked(ds, rec){ return !!rec && ds < todayKey(); }
+
 function toggleDay(d){
   var mk = mkey(view.y,view.m), ds = dkey(view.y,view.m,d);
   if(!shiftsByM[mk]) shiftsByM[mk] = { month:mk, days:{} };
   if(!shiftsByM[mk].days) shiftsByM[mk].days = {};
   var days = shiftsByM[mk].days, k = String(d);
-  if(days[k]){ delete days[k]; }
+  if(days[k]){
+    if(isLocked(ds, days[k])){ openDay(d); return; }   // muốn sửa/xoá thì vào chi tiết
+    delete days[k];
+  }
   else{
     var t = autoType(ds), h = hoursFor(view.y,view.m,d), st = hhmm(settings.defaultStart);
     days[k] = { hours:h, type:t, rate:num(settings.rate,80000), mult:multOf(t),
