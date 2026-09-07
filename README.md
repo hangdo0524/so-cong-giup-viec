@@ -12,6 +12,9 @@ authors:
   - date: 2026-09-07
     email: "hang.do@difisoft.com"
     change: "Sửa responsive cho iPhone — bỏ tràn ngang, thu gọn lịch và bảng tổng quan, chặn iOS tự phóng to khi nhập"
+  - date: 2026-09-07
+    email: "hang.do@difisoft.com"
+    change: "Thêm lưu trữ server bằng Firebase Firestore cho bản GitHub Pages, kèm mã sổ trong link để dùng chung giữa các thiết bị"
 ---
 
 # Sổ Công Giúp Việc
@@ -34,8 +37,28 @@ Web chấm công cho người giúp việc trả theo giờ. Làm ngày nào tí
 
 | Bản | Nơi chạy | Dữ liệu |
 |-----|----------|---------|
-| `index.html` | Claude Artifact (fragment, được bọc sẵn `<head>`/`<body>`) | Đồng bộ cloud — mở trên điện thoại và máy tính đều thấy chung |
-| `docs/index.html` | GitHub Pages / mở trực tiếp bằng trình duyệt | `localStorage` — mỗi máy một sổ riêng, **không đồng bộ** |
+| `index.html` | Claude Artifact (fragment, được bọc sẵn `<head>`/`<body>`) | Kho dữ liệu của Artifact — đồng bộ sẵn giữa các thiết bị |
+| `docs/index.html` | GitHub Pages / mở trực tiếp bằng trình duyệt | Firebase Firestore nếu đã cấu hình, chưa cấu hình thì `localStorage` từng máy |
+
+App tự chọn: có `window.claude` thì dùng kho của Artifact, không thì tìm `window.FIREBASE_CONFIG`, không có nữa thì chạy offline bằng `localStorage`. Cả ba đi qua **cùng một lớp `wireCloud()`** nên phần còn lại của app không biết mình đang chạy trên nền nào.
+
+## Bật lưu server cho bản GitHub Pages
+
+1. Vào [console.firebase.google.com](https://console.firebase.google.com) → **Add project** → đặt tên (vd `so-cong-giup-viec`), tắt Google Analytics cho gọn.
+2. Trong project → **Build → Firestore Database** → **Create database** → chọn vùng `asia-southeast1` (Singapore) → **Start in production mode**.
+3. Tab **Rules** → dán nội dung [`firestore.rules`](firestore.rules) → **Publish**.
+4. **Project settings** (bánh răng) → kéo xuống **Your apps** → bấm biểu tượng `</>` (Web) → đặt nickname → **Register app**. Màn hình hiện đoạn `firebaseConfig = {...}`.
+5. Chép `firebase-config.example.js` thành `docs/firebase-config.js`, điền các giá trị vừa lấy, rồi commit.
+
+`docs/firebase-config.js` **không nằm trong `.gitignore`** — các khoá này công khai được, Firebase thiết kế như vậy. Phần chặn nằm ở `firestore.rules` cộng với mã sổ.
+
+### Mã sổ và chia sẻ giữa các thiết bị
+
+Lần đầu mở, app sinh một mã ngẫu nhiên 26 ký tự và gắn vào link dạng `…/#s=<mã>`. Toàn bộ dữ liệu của sổ nằm dưới `books/<mã>/` trong Firestore.
+
+Muốn điện thoại và máy tính chung một sổ: mở **Cài đặt → Liên kết thiết bị → Chép**, rồi mở đúng link đó trên máy kia.
+
+**App không có đăng nhập** — ai có link là đọc và sửa được sổ. Mã sổ dài nên không mò ra được, nhưng đừng đăng link công khai.
 
 ## Build
 
@@ -46,6 +69,8 @@ Web chấm công cho người giúp việc trả theo giờ. Làm ngày nào tí
 Ghép `index.html` vào khung HTML đầy đủ và ghi ra `docs/index.html` — thư mục GitHub Pages phục vụ. Sửa code thì sửa trong `index.html` rồi chạy lại lệnh trên.
 
 ## Cấu trúc dữ liệu (cloud)
+
+Trên Artifact là đường dẫn gốc; trên Firestore thì thêm tiền tố `books/<mã sổ>/`.
 
 ```
 config/settings          { rate, hoursWeekday, hoursWeekend, multNormal, multPreTet, multHoliday, tetStart, ... }

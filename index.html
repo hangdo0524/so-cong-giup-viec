@@ -451,6 +451,13 @@ table.ov tbody tr.cur td:first-child::after{content:' · đang xem';font-family:
 .modal-foot .btn{flex:1;text-align:center}
 .modal-foot .btn.danger{flex:0 0 auto}
 
+.linkrow{display:flex;gap:8px;align-items:stretch}
+.linkrow input{
+  flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
+  padding:9px 11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2);
+}
+.linkrow .btn{flex:0 0 auto}
+
 textarea.copybox{
   width:100%;min-height:230px;background:var(--surface-2);border:1px solid var(--line);
   border-radius:9px;padding:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -1179,6 +1186,12 @@ function openSettings(){
   + '</div>'
   + '<p class="hint" id="sTetHint"></p>'
   + '<p class="hint">Đổi đơn giá hoặc hệ số chỉ áp dụng cho những ngày chấm mới. Ngày đã chấm giữ nguyên số tiền cũ — mở ô ngày đó để sửa nếu cần.</p>'
+  + (window.FIREBASE_CONFIG ? (
+      '<div class="field"><label>Liên kết thiết bị</label>'
+    + '<div class="linkrow"><input type="text" id="sLink" readonly value="'+esc(bookLink())+'">'
+    + '<button class="btn sm" id="sCopyLink" type="button">Chép</button></div>'
+    + '<p class="hint">Mở đúng link này trên điện thoại thì hai máy dùng chung một sổ. Ai có link là xem và sửa được sổ, nên đừng đăng công khai.</p></div>'
+    ) : '')
   + '<div class="modal-foot"><button class="btn ghost" id="sCancel">Huỷ</button><button class="btn primary" id="sSave">Lưu cài đặt</button></div>';
 
   openModal('Cài đặt', html, function(root){
@@ -1196,6 +1209,16 @@ function openSettings(){
         : 'Ngày '+fmtD(ts)+' nếu vẫn làm thì tính hệ số Lễ. ';
       hint.textContent = t1 + t2 + base;
     }
+    var cpLink = root.querySelector('#sCopyLink');
+    if(cpLink) cpLink.addEventListener('click', function(){
+      var f = root.querySelector('#sLink');
+      f.select(); f.setSelectionRange(0, 999);
+      var done = function(){ toast('Đã chép link. Dán vào trình duyệt điện thoại nhé.'); };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(f.value).then(done, function(){ try{ document.execCommand('copy'); done(); }catch(e){ toast('Chưa chép được — chị bấm giữ để chép tay nhé.'); } });
+      } else { try{ document.execCommand('copy'); done(); }catch(e){ toast('Chưa chép được — chị bấm giữ để chép tay nhé.'); } }
+    });
+
     root.querySelector('#sCancel').addEventListener('click', closeModal);
     root.querySelector('#sSave').addEventListener('click', function(){
       settings.workerName  = root.querySelector('#sName').value.trim();
@@ -1314,48 +1337,116 @@ loadLocal();
 paintSync();
 paintAll();
 
+/* ============ mã sổ (dùng cho bản Firebase) ============ */
+var BOOK_KEY = 'sokong-book-id';
+function newBookId(){
+  var s='', abc='abcdefghijklmnopqrstuvwxyz0123456789';
+  var r = (window.crypto && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(26)) : null;
+  for(var i=0;i<26;i++) s += abc[(r ? r[i] : Math.floor(Math.random()*256)) % abc.length];
+  return s;
+}
+function bookId(){
+  var m = /[#&?]s=([a-z0-9]{20,64})/i.exec(location.hash + '&' + location.search);
+  var id = m ? m[1].toLowerCase() : '';
+  if(!id){ try{ id = localStorage.getItem(BOOK_KEY) || ''; }catch(e){} }
+  if(!id) id = newBookId();
+  try{ localStorage.setItem(BOOK_KEY, id); }catch(e){}
+  if(location.hash.indexOf('s='+id) < 0){
+    try{ history.replaceState(null, '', location.pathname + location.search + '#s=' + id); }catch(e){}
+  }
+  return id;
+}
+function bookLink(){ return location.origin + location.pathname + '#s=' + bookId(); }
+
+/* Bọc Firestore lại cho giống hệt API cloud của Artifact, phần còn lại của app không phải sửa */
+function firestoreCloud(fs, db, base){
+  return {
+    doc: function(path){
+      var ref = fs.doc(db, base+'/'+path);
+      return {
+        set: function(data){ return fs.setDoc(ref, data); },
+        onSnapshot: function(next, err){
+          return fs.onSnapshot(ref, function(snap){
+            next({ exists: snap.exists(), data: function(){ return snap.data(); } });
+          }, err);
+        }
+      };
+    },
+    collection: function(name){
+      var ref = fs.collection(db, base+'/'+name);
+      return {
+        onSnapshot: function(next, err){
+          return fs.onSnapshot(ref, function(qs){
+            var docs = [];
+            qs.forEach(function(d){ docs.push({ id:d.id, data:(function(x){ return function(){ return x.data(); }; })(d) }); });
+            next({ docs: docs, empty: qs.empty });
+          }, err);
+        }
+      };
+    }
+  };
+}
+
+/* Nối các listener — dùng chung cho cả Artifact lẫn Firebase */
+function wireCloud(db, label){
+  cloud = db; mode = label; paintSync();
+  var firstS = true, firstSh = true, firstP = true;
+
+  db.doc('config/settings').onSnapshot(function(snap){
+    if(firstS){
+      firstS = false;
+      if(!snap.exists){ pushSettings(); return; }   // đẩy bản trên máy lên lần đầu
+    }
+    if(snap.exists){ settings = migrateSettings(snap.data()); saveLocal(); paintAll(); }
+  }, cloudErr);
+
+  db.collection('shifts').onSnapshot(function(snap){
+    var next = {};
+    snap.docs.forEach(function(d){ var v=d.data()||{}; next[d.id] = { month:d.id, days:v.days||{} }; });
+    if(firstSh){
+      firstSh = false;
+      if(snap.empty && Object.keys(shiftsByM).length){        // cloud trống, máy có sẵn → đẩy lên
+        for(var k in shiftsByM) pushMonth(k);
+        return;
+      }
+    }
+    shiftsByM = next; saveLocal(); paintCalendar(); paintSummary(); paintReviews(); paintOverview();
+  }, cloudErr);
+
+  db.collection('payments').onSnapshot(function(snap){
+    var next = {};
+    snap.docs.forEach(function(d){ var v=d.data()||{}; next[d.id] = { month:d.id, items:Array.isArray(v.items)?v.items:[] }; });
+    if(firstP){
+      firstP = false;
+      if(snap.empty && Object.keys(paysByM).length){
+        for(var k in paysByM) pushPays(k);
+        return;
+      }
+    }
+    paysByM = next; saveLocal(); paintPayments(); paintSummary(); paintOverview();
+  }, cloudErr);
+}
+
 /* ============ nối cloud ============ */
+/* Bản trên Claude Artifact: dùng kho dữ liệu sẵn có.
+   Bản trên GitHub Pages: dùng Firebase Firestore (cấu hình trong firebase-config.js).
+   Không có cái nào thì chạy bằng localStorage của máy. */
 if(window.claude && typeof window.claude.use === 'function'){
   window.claude.use('db').then(function(db){
-    if(!db) return;                       // không có cloud — vẫn chạy bằng localStorage
-    cloud = db; mode = 'cloud'; paintSync();
-
-    var firstS = true, firstSh = true, firstP = true;
-
-    db.doc('config/settings').onSnapshot(function(snap){
-      if(firstS){
-        firstS = false;
-        if(!snap.exists){ pushSettings(); return; }   // đẩy bản trên máy lên lần đầu
-      }
-      if(snap.exists){ settings = migrateSettings(snap.data()); saveLocal(); paintAll(); }
-    }, cloudErr);
-
-    db.collection('shifts').onSnapshot(function(snap){
-      var next = {};
-      snap.docs.forEach(function(d){ var v=d.data()||{}; next[d.id] = { month:d.id, days:v.days||{} }; });
-      if(firstSh){
-        firstSh = false;
-        if(snap.empty && Object.keys(shiftsByM).length){        // cloud trống, máy có sẵn → đẩy lên
-          for(var k in shiftsByM) pushMonth(k);
-          return;
-        }
-      }
-      shiftsByM = next; saveLocal(); paintCalendar(); paintSummary(); paintReviews(); paintOverview();
-    }, cloudErr);
-
-    db.collection('payments').onSnapshot(function(snap){
-      var next = {};
-      snap.docs.forEach(function(d){ var v=d.data()||{}; next[d.id] = { month:d.id, items:Array.isArray(v.items)?v.items:[] }; });
-      if(firstP){
-        firstP = false;
-        if(snap.empty && Object.keys(paysByM).length){
-          for(var k in paysByM) pushPays(k);
-          return;
-        }
-      }
-      paysByM = next; saveLocal(); paintPayments(); paintSummary(); paintOverview();
-    }, cloudErr);
+    if(db) wireCloud(db, 'cloud');
   }).catch(function(){ /* giữ nguyên chế độ local */ });
 }
+else if(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId){
+  var FB = 'https://www.gstatic.com/firebasejs/10.13.2/';
+  Promise.all([ import(FB+'firebase-app.js'), import(FB+'firebase-firestore.js') ])
+    .then(function(mods){
+      var app = mods[0].initializeApp(window.FIREBASE_CONFIG);
+      var fs  = mods[1];
+      var db  = fs.getFirestore(app);
+      wireCloud(firestoreCloud(fs, db, 'books/'+bookId()), 'cloud');
+    })
+    .catch(function(e){ cloudErr(e); });
+}
+
 })();
 </script>

@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Mỗi cuốn sổ nằm dưới books/<mã sổ>. Mã sổ là chuỗi ngẫu nhiên 26 ký tự
+    // sinh ở máy người dùng và nằm trong link — không có link thì không mò ra được.
+    // Không cho liệt kê collection books ở cấp gốc, nên không quét được danh sách sổ.
+    match /books/{bookId}/{document=**} {
+      allow read, write: if bookId.size() >= 20;
+    }
+  }
+}

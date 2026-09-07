@@ -15,8 +15,10 @@ mkdir -p docs
 <meta name="theme-color" content="#0e1a15">
 <meta name="description" content="Sổ chấm công giúp việc theo giờ: số buổi, hệ số lễ/cận Tết, nhận xét và lịch sử trả lương.">
 <style>*{box-sizing:border-box}html,body{margin:0}body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f8f6}img{max-width:100%}[hidden]{display:none!important}</style>
+<script src="firebase-config.js"></script>
 HEAD
   cat index.html
   printf '</body>\n</html>\n'
 } > docs/index.html
+[ -f docs/firebase-config.js ] || cp firebase-config.example.js docs/firebase-config.js
 echo "→ docs/index.html ($(wc -c < docs/index.html) bytes)"
