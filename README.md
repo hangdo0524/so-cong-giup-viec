@@ -9,6 +9,9 @@ authors:
   - date: 2026-09-07
     email: "hang.do@difisoft.com"
     change: "Khoá ngày quá khứ đã chấm — chạm trên lịch chỉ mở chi tiết, muốn sửa hoặc xoá phải vào bảng chi tiết"
+  - date: 2026-09-07
+    email: "hang.do@difisoft.com"
+    change: "Sửa responsive cho iPhone — bỏ tràn ngang, thu gọn lịch và bảng tổng quan, chặn iOS tự phóng to khi nhập"
 ---
 
 # Sổ Công Giúp Việc

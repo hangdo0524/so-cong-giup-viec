@@ -83,6 +83,7 @@ body{
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 
 .wrap{max-width:1040px;margin:0 auto;padding:0 14px}
@@ -146,8 +147,8 @@ button{cursor:pointer}
   .cols{grid-template-columns:1.15fr 1fr;align-items:start}
   .col-right{position:sticky;top:70px;display:grid;gap:14px}
 }
-.col-left{display:grid;gap:14px;align-content:start}
-.col-right{display:grid;gap:14px;align-content:start}
+.col-left{display:grid;gap:14px;align-content:start;min-width:0}
+.col-right{display:grid;gap:14px;align-content:start;min-width:0}
 
 .panel{
   background:var(--surface);border:1px solid var(--line);
@@ -162,7 +163,7 @@ button{cursor:pointer}
   letter-spacing:.01em;
 }
 .panel-head .spacer{margin-left:auto}
-.panel-body{padding:13px 15px 15px}
+.panel-body{padding:13px 15px 15px;min-width:0}
 
 /* ---------- calendar ---------- */
 .cal{padding:12px}
@@ -465,6 +466,64 @@ textarea.copybox{
 .footnote{
   text-align:center;font-size:11.5px;color:var(--muted);
   padding:22px 10px 0;line-height:1.6;
+}
+
+/* ===== điện thoại: vừa đúng bề ngang, không phải kéo ngang ===== */
+@media (max-width:520px){
+  .wrap{padding:0 10px}
+  .topbar-in{padding:9px 10px;gap:8px}
+  .brand h1{font-size:16px}
+  .brand .who{font-size:11px}
+  .sync{font-size:10px;padding:3px 7px}
+
+  .monthbar{padding:12px 0 8px}
+  .monthbar .mtitle{font-size:17px}
+  .today-btn{height:32px;padding:0 10px;font-size:12.5px}
+
+  .cal{padding:9px}
+  .dow{gap:4px}
+  .dow span{font-size:10.5px}
+  .grid{gap:4px}
+  .cell{min-height:54px;padding:4px 5px;border-radius:8px}
+  .cell .dnum{font-size:12px}
+  .cell .dh{font-size:10.5px}
+  .edit{width:21px;height:21px;top:1px;right:1px;border-radius:6px;opacity:.75}
+  .edit svg{width:11px;height:11px}
+  .rdot{width:5px;height:5px}
+  .legend{gap:9px;font-size:10.5px;padding:10px 0 2px}
+
+  .panel-head{padding:12px 12px 0}
+  .panel-body{padding:11px 12px 13px}
+
+  /* bảng tổng quan: bỏ min-width để 5 cột co vừa màn hình */
+  table.ov{min-width:0;font-size:12px}
+  table.ov th{font-size:9.5px;letter-spacing:.03em}
+  table.ov td{padding:7px 0}
+  table.ov td:first-child{font-size:12px}
+  table.ov tbody tr.cur td:first-child::after{content:''}   /* nhãn "đang xem" thay bằng vạch màu bên trái */
+  .pill{font-size:10.5px;padding:2px 6px}
+
+  .stats{grid-template-columns:repeat(3,1fr)}
+  .stat{padding:10px 0 2px}
+
+  /* iOS tự phóng to trang khi focus ô nhập dưới 16px */
+  .field input[type=text],.field input[type=number],.field input[type=date],.field input[type=time],
+  .field select,.field textarea,.modal input,.modal select,.modal textarea{font-size:16px}
+  .two{gap:8px}
+  .modal-body{padding:13px 14px 14px;gap:12px}
+  .modal-head{padding:14px 14px 9px}
+  .modal-foot{margin:0 -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
+}
+
+/* màn hình rất hẹp (iPhone SE, iPhone mini) */
+@media (max-width:380px){
+  .wrap{padding:0 8px}
+  .cal{padding:7px}
+  .grid{gap:3px}
+  .cell{min-height:50px;padding:3px 4px}
+  .cell .dh{font-size:10px}
+  table.ov{font-size:11.5px}
+  table.ov th{font-size:9px}
 }
 </style>
 
