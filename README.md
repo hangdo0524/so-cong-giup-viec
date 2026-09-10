@@ -21,6 +21,9 @@ authors:
   - date: 2026-09-10
     email: "hang.do@difisoft.com"
     change: "Đăng nhập Google cho chủ sổ — sổ gắn với tài khoản thay vì chỉ dựa vào link, kèm quy trình bật trên Firebase Console"
+  - date: 2026-09-10
+    email: "hang.do@difisoft.com"
+    change: "Tách giờ công và tiền công thành phần theo hợp đồng miệng và phần phát sinh thêm, mỗi buổi phát sinh có ô ghi lý do; giờ chuẩn tách riêng T7 và CN"
 ---
 
 # Sổ Công Giúp Việc
@@ -29,17 +32,22 @@ Web chấm công cho người giúp việc trả theo giờ. Làm ngày nào tí
 
 ## Tính năng
 
-- **Lịch tháng** — chạm 1 lần vào ngày để chấm công theo số giờ mặc định (T2–T6: 3h, cuối tuần: 4h). Chạm lại để mở bảng chi tiết.
+- **Lịch tháng** — chạm 1 lần vào ngày để chấm công theo số giờ chuẩn của ngày đó (mặc định T2–T6: 3h, T7: 4h, CN: không nằm trong hợp đồng). Chạm lại để mở bảng chi tiết.
 - **Giờ vào / giờ ra** — ghi giờ bắt đầu và kết thúc, tự tính số giờ.
 - **Hệ số** — thường ×1, ngày lễ ×1.2, 10 ngày cận Tết ×1.5. Sửa được trong Cài đặt.
 - **Nhận xét từng buổi** — đánh giá tốt / bình thường / chưa đạt kèm ghi chú.
 - **Ngày quá khứ được khoá** — ngày đã qua mà đã chấm công thì chạm trên lịch chỉ **mở bảng chi tiết**, không bỏ chấm nữa. Muốn sửa hoặc xoá phải làm trong bảng chi tiết. Ngày hôm nay và ngày sắp tới vẫn chạm lại để bỏ chấm nhanh.
+- **Tách giờ chuẩn và giờ phát sinh** — mỗi buổi chia làm hai phần: phần nằm trong hợp đồng miệng và phần dôi ra. Cả số giờ lẫn số tiền đều tách đôi, ở ô ngày trên lịch (`3+2h`), trong bảng chi tiết, ở phần tổng tháng, trong bảng tổng quan các tháng và trong bảng kê gửi Zalo.
+- **Lý do giờ phát sinh** — buổi nào làm quá giờ chuẩn thì bảng chi tiết mở thêm ô lý do (gợi ý theo các lý do đã dùng). Bảng **Giờ phát sinh** liệt kê từng ngày kèm lý do; buổi chưa ghi lý do được đánh dấu đỏ để cuối tháng đối chiếu cho dễ.
+- **Làm hụt không tính bù** — làm ít hơn giờ chuẩn thì chỉ tính giờ làm thật, app ghi rõ hụt bao nhiêu chứ không tự trừ hay bù sang ngày khác.
 - **Sổ trả lương** — ghi từng lần trả, theo dõi còn thiếu bao nhiêu.
 - **Tổng quan các tháng** — luôn hiện tháng hiện tại; bấm vào một tháng để nhảy tới tháng đó.
 - **Nhiều người trong một sổ** — mỗi người một công việc, đơn giá và giờ chuẩn riêng; chọn người bằng dải chip ở đầu trang. Ngưng làm thì tạm ẩn, số liệu cũ vẫn còn.
 - **Đăng nhập chủ sổ** (bản GitHub Pages) — sổ gắn với tài khoản Google, máy mới chỉ cần đăng nhập là thấy đủ số liệu.
 
-Đơn giá và hệ số được **chốt lại tại thời điểm chấm công**. Sửa đơn giá trong Cài đặt chỉ ảnh hưởng các buổi chấm sau đó, không tính lại quá khứ.
+Đơn giá, hệ số và **giờ chuẩn** đều được **chốt lại tại thời điểm chấm công**. Sửa trong *Sửa thông tin* chỉ ảnh hưởng các buổi chấm sau đó, không tính lại quá khứ.
+
+Giờ chuẩn đặt riêng cho T2–T6, T7 và CN. Để **CN = 0** nghĩa là Chủ nhật không nằm trong hợp đồng — hôm nào làm thì tính hết là giờ phát sinh. Việc tách này chỉ đổi cách hiển thị, **tổng tiền không đổi**: `chuẩn + phát sinh = tổng` luôn đúng.
 
 ## Hai bản
 
@@ -100,8 +108,8 @@ Ghép `index.html` vào khung HTML đầy đủ và ghi ra `docs/index.html` —
 Trên Artifact là đường dẫn gốc; trên Firestore thì thêm tiền tố `books/<mã sổ>/`.
 
 ```
-config/settings              { people: [ { id, name, job, rate, hoursWeekday, hoursWeekend, active } ], multNormal, multPreTet, multHoliday, tetStart, ... }
-shifts/YYYY-MM__<mã người>   { month, person, days: { "12": { hours, type, rate, mult, start, end, note, rating, review } } }
+config/settings              { people: [ { id, name, job, rate, hoursWeekday, hoursSat, hoursSun, active } ], multNormal, multPreTet, multHoliday, tetStart, ... }
+shifts/YYYY-MM__<mã người>   { month, person, days: { "12": { hours, base, type, rate, mult, start, end, note, why, rating, review } } }
 payments/YYYY-MM__<mã người> { month, person, items: [ { id, date, amount, note } ] }
 ```
 
@@ -112,4 +120,6 @@ books/<mã sổ>            { owners: { "<uid>": true } }      hồ sơ sổ —
 users/<uid>              { books: [ "<mã sổ>", ... ] }      tài khoản này có những sổ nào
 ```
 
-Sổ bản cũ đánh khoá theo tháng (`2026-09`); mở bằng bản mới thì tự gán cho người đầu tiên (`2026-09__p1`).
+`hours` luôn là **tổng** giờ làm thật, `base` là giờ chuẩn chốt lúc chấm. App tự suy ra `chuẩn = min(hours, base)` và `phát sinh = hours − chuẩn`, nên hai phần cộng lại không bao giờ lệch tổng. `why` là lý do phần phát sinh.
+
+Sổ bản cũ đánh khoá theo tháng (`2026-09`); mở bằng bản mới thì tự gán cho người đầu tiên (`2026-09__p1`). Buổi chấm trước khi có tính năng tách giờ chưa có `base` — app suy ra từ cài đặt lúc đọc, **không sửa dữ liệu cũ**; lần lưu lại sau đó mới ghi thêm. Người chỉ có `hoursWeekend` cũng tự đọc thành `hoursSat`.
