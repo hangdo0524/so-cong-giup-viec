@@ -2,11 +2,43 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Mỗi cuốn sổ nằm dưới books/<mã sổ>. Mã sổ là chuỗi ngẫu nhiên 26 ký tự
-    // sinh ở máy người dùng và nằm trong link — không có link thì không mò ra được.
-    // Không cho liệt kê collection books ở cấp gốc, nên không quét được danh sách sổ.
-    match /books/{bookId}/{document=**} {
-      allow read, write: if bookId.size() >= 20;
+    function bookPath(bookId){
+      return /databases/$(database)/documents/books/$(bookId);
+    }
+    function claimed(bookId){
+      return exists(bookPath(bookId));
+    }
+    function isOwner(bookId){
+      return request.auth != null
+          && claimed(bookId)
+          && get(bookPath(bookId)).data.get('owners', {}).get(request.auth.uid, false) == true;
+    }
+    // Sổ chưa ai nhận thì vẫn mở được bằng link như trước — để không khoá cửa
+    // trước khi kịp đăng nhập. Nhận rồi thì chỉ chủ sổ mới vào được, link không đủ.
+    function canUse(bookId){
+      return bookId.size() >= 20 && (!claimed(bookId) || isOwner(bookId));
+    }
+
+    // Hồ sơ sổ: chỉ chứa danh sách chủ sổ, không chứa thông tin cá nhân.
+    // Ai có link cũng đọc được để biết sổ đã có chủ chưa, nhưng không liệt kê được.
+    match /books/{bookId} {
+      allow get:    if bookId.size() >= 20;
+      allow list:   if false;
+      allow create: if request.auth != null
+                    && bookId.size() >= 20
+                    && request.resource.data.owners.get(request.auth.uid, false) == true;
+      allow update: if isOwner(bookId)
+                    && request.resource.data.owners.get(request.auth.uid, false) == true;
+      allow delete: if false;
+    }
+
+    match /books/{bookId}/config/{doc}   { allow read, write: if canUse(bookId); }
+    match /books/{bookId}/shifts/{doc}   { allow read, write: if canUse(bookId); }
+    match /books/{bookId}/payments/{doc} { allow read, write: if canUse(bookId); }
+
+    // Mỗi tài khoản nhớ mình có những sổ nào, để đăng nhập máy mới là thấy sổ ngay.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
   }
 }

@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0e1a15">
 <meta name="description" content="Sổ chấm công giúp việc theo giờ: số buổi, hệ số lễ/cận Tết, nhận xét và lịch sử trả lương.">
 <style>*{box-sizing:border-box}html,body{margin:0}body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f8f6}img{max-width:100%}[hidden]{display:none!important}</style>
-<script src="firebase-config.js?v=20260907153704"></script>
+<script src="firebase-config.js?v=20260910094653"></script>
 <title>Sổ Công Giúp Việc</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -119,8 +119,11 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   font-size:11px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;
   padding:3px 8px;border-radius:999px;border:1px solid var(--line);
   color:var(--muted);background:var(--surface-2);white-space:nowrap;
+  max-width:44vw;overflow:hidden;text-overflow:ellipsis;
 }
+.sync:hover{border-color:var(--line-strong)}
 .sync[data-mode="cloud"]{color:var(--accent);border-color:var(--accent-soft);background:var(--accent-soft)}
+.sync[data-mode="locked"]{color:var(--red);border-color:var(--red-soft);background:var(--red-soft)}
 .icon-btn{
   background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
   width:36px;height:36px;display:grid;place-items:center;color:var(--ink-2);
@@ -499,6 +502,26 @@ table.ov tbody tr.cur td:first-child::after{content:' · đang xem';font-family:
   border:1px solid var(--line);border-radius:12px;
 }
 .qrbox canvas{display:block;width:196px;height:196px;max-width:100%}
+.acct{display:flex;align-items:center;gap:10px;padding:10px 11px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
+.acct .av{
+  width:34px;height:34px;border-radius:999px;flex:0 0 auto;
+  background:var(--accent-soft);color:var(--accent-ink);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;
+}
+.acct .ai{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.acct .an{font-size:13.5px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .ae{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bklist{display:grid;gap:6px}
+.bkrow{
+  display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+  padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+  background:var(--surface);cursor:pointer;color:var(--ink-2);
+  font:inherit;font-size:13px;
+}
+.bkrow:hover{border-color:var(--line-strong)}
+.bkrow.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.bkid{margin-left:auto;flex:0 0 auto;font-family:var(--font-num);font-size:11.5px;color:var(--muted)}
+.bkrow.on .bkid{color:var(--accent-ink)}
 
 textarea.copybox{
   width:100%;min-height:230px;background:var(--surface-2);border:1px solid var(--line);
@@ -584,7 +607,7 @@ textarea.copybox{
       <h1>Sổ Công</h1>
       <span class="who" id="whoLabel">—</span>
     </div>
-    <span class="sync" id="syncPill" data-mode="local">Trên máy</span>
+    <button class="sync" id="syncPill" data-mode="local" title="Sổ này lưu ở đâu">Trên máy</button>
     <button class="icon-btn" id="btnSettings" title="Cài đặt" aria-label="Cài đặt">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
@@ -700,6 +723,12 @@ var curPid     = '';   // người đang xem — riêng từng thiết bị, kh�
 var view       = { y:new Date().getFullYear(), m:new Date().getMonth() };
 var cloud      = null;
 var mode       = 'local';
+
+/* Đăng nhập (chỉ bản GitHub Pages dùng Firebase; bản Artifact đã theo tài khoản Claude) */
+var fbCtx      = null;   // { fs, db, mod, auth, path, id }
+var fbUser     = null;   // người đang đăng nhập
+var bookOwners = null;   // null = chưa biết · {} = sổ chưa ai nhận · {uid:true} = đã có chủ
+var myBooks    = [];     // các sổ của tài khoản này
 
 /* ============ tiện ích ============ */
 var nfVN = new Intl.NumberFormat('vi-VN');
@@ -898,6 +927,12 @@ function loadLocal(){
     return true;
   }catch(e){ return false; }
 }
+/* Sổ trắng thì đổi sang sổ khác là an toàn, không mất gì. */
+function bookIsEmpty(){
+  for(var a in shiftsByM){ var d = shiftsByM[a].days || {}; for(var k in d) if(d.hasOwnProperty(k)) return false; }
+  for(var b in paysByM){ var it = paysByM[b].items; if(it && it.length) return false; }
+  return true;
+}
 function pushCloud(path, data){          // lỗi cloud không được chặn thao tác trên máy
   if(!cloud) return;
   try{ var r = cloud.doc(path).set(data); if(r && r.catch) r.catch(cloudErr); }
@@ -920,13 +955,33 @@ function cloudErr(e){
 }
 
 /* ============ vẽ giao diện ============ */
+function shortName(u){
+  var n = String((u && (u.displayName || u.email)) || '').trim();
+  if(!n) return '';
+  if(n.indexOf('@') > 0) n = n.slice(0, n.indexOf('@'));
+  else n = n.split(/\s+/).pop();            // gọi bằng tên, không gọi cả họ
+  return n.length > 12 ? n.slice(0,11)+'…' : n;
+}
+function iOwnBook(){ return !!(fbUser && bookOwners && bookOwners[fbUser.uid] === true); }
+function bookClaimed(){ return !!(bookOwners && Object.keys(bookOwners).length); }
+
 function paintSync(){
   var el = document.getElementById('syncPill');
   el.dataset.mode = mode;
-  el.textContent = mode==='cloud' ? 'Đồng bộ' : 'Trên máy';
-  el.title = mode==='cloud'
-    ? 'Dữ liệu lưu trên cloud, mở được từ mọi thiết bị.'
-    : 'Dữ liệu lưu trong trình duyệt của thiết bị này.';
+  if(mode !== 'cloud'){
+    el.textContent = 'Trên máy';
+    el.title = 'Dữ liệu lưu trong trình duyệt của thiết bị này. Bấm để xem cách đồng bộ.';
+  } else if(fbCtx && bookClaimed() && !iOwnBook()){
+    el.dataset.mode = 'locked';
+    el.textContent = 'Sổ của người khác';
+    el.title = 'Sổ này đã có chủ là tài khoản khác. Bấm để xem.';
+  } else if(fbUser){
+    el.textContent = 'Đồng bộ · ' + (shortName(fbUser) || 'đã đăng nhập');
+    el.title = 'Đang đăng nhập ' + (fbUser.email || '') + '. Bấm để xem chi tiết.';
+  } else {
+    el.textContent = 'Đồng bộ';
+    el.title = 'Dữ liệu lưu trên cloud, mở được từ mọi thiết bị. Bấm để xem chi tiết.';
+  }
 }
 function paintWho(){
   var p = curPerson(), n = String(p.name||'').trim(), j = String(p.job||'').trim();
@@ -1114,7 +1169,7 @@ function toggleDay(d){
 
 /* ============ modal ============ */
 var backdrop = null;
-function closeModal(){ if(backdrop){ backdrop.remove(); backdrop=null; document.removeEventListener('keydown', escClose); } }
+function closeModal(){ acctOpen = false; if(backdrop){ backdrop.remove(); backdrop=null; document.removeEventListener('keydown', escClose); } }
 function escClose(e){ if(e.key==='Escape') closeModal(); }
 function openModal(title, bodyHtml, wire){
   closeModal();
@@ -1447,12 +1502,9 @@ function openSettings(){
   + '<p class="hint">Đổi hệ số chỉ áp dụng cho những ngày chấm mới. Ngày đã chấm giữ nguyên số tiền cũ — mở ô ngày đó để sửa nếu cần.</p>'
   + pausedHtml
   + (window.FIREBASE_CONFIG ? (
-      '<div class="field"><label>Dùng chung sổ với điện thoại</label>'
-    + '<p class="hint">Mở camera điện thoại rồi quét mã dưới đây — điện thoại sẽ vào đúng sổ này.</p>'
-    + '<div class="qrbox"><canvas id="sQR" width="196" height="196" role="img" aria-label="Mã QR để mở sổ này trên điện thoại"></canvas></div>'
-    + '<div class="linkrow"><input type="text" id="sLink" readonly value="'+esc(bookLink())+'">'
-    + '<button class="btn sm" id="sCopyLink" type="button">Chép</button></div>'
-    + '<p class="hint">Hoặc chép link rồi gửi sang điện thoại. Ai có link là xem và sửa được sổ, nên đừng đăng công khai.</p></div>'
+      '<div class="field"><label>Tài khoản và đồng bộ</label>'
+    + '<p class="hint">Đăng nhập, mã QR và link dùng chung sổ với điện thoại — nay nằm ở nhãn đồng bộ góc trên bên phải.</p>'
+    + '<button class="btn full" id="sAcct" type="button">Mở tài khoản và đồng bộ</button></div>'
     ) : '')
   + '<div class="modal-foot"><button class="btn ghost" id="sCancel">Huỷ</button><button class="btn primary" id="sSave">Lưu cài đặt</button></div>';
 
@@ -1471,18 +1523,8 @@ function openSettings(){
         : 'Ngày '+fmtD(ts)+' nếu vẫn làm thì tính hệ số Lễ. ';
       hint.textContent = t1 + t2 + base;
     }
-    var qrEl = root.querySelector('#sQR');
-    if(qrEl) drawQR(qrEl, bookLink());
-
-    var cpLink = root.querySelector('#sCopyLink');
-    if(cpLink) cpLink.addEventListener('click', function(){
-      var f = root.querySelector('#sLink');
-      f.select(); f.setSelectionRange(0, 999);
-      var done = function(){ toast('Đã chép link. Dán vào trình duyệt điện thoại nhé.'); };
-      if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(f.value).then(done, function(){ try{ document.execCommand('copy'); done(); }catch(e){ toast('Chưa chép được — chị bấm giữ để chép tay nhé.'); } });
-      } else { try{ document.execCommand('copy'); done(); }catch(e){ toast('Chưa chép được — chị bấm giữ để chép tay nhé.'); } }
-    });
+    var sAcct = root.querySelector('#sAcct');
+    if(sAcct) sAcct.addEventListener('click', openAccount);
 
     Array.prototype.slice.call(root.querySelectorAll('[data-back]')).forEach(function(b){
       b.addEventListener('click', function(){
@@ -1509,6 +1551,185 @@ function openSettings(){
     [sTS,sPD,sTE].forEach(function(el){ el.addEventListener('input', tetHint); el.addEventListener('change', tetHint); });
     tetHint();
   });
+}
+
+/* --- tài khoản & đồng bộ --- */
+/* Sổ gắn với tài khoản: ai nhận sổ trước thì sổ thuộc về tài khoản đó.
+   Sổ chưa ai nhận vẫn mở được bằng link như cũ, để không ai bị khoá ngoài sổ của mình. */
+var acctOpen = false;
+
+function authErr(e){
+  var c = (e && e.code) || '';
+  if(c==='auth/popup-closed-by-user' || c==='auth/cancelled-popup-request') return;
+  if(c==='auth/unauthorized-domain')    { toast('Địa chỉ web này chưa được cho phép trong Firebase.'); return; }
+  if(c==='auth/operation-not-allowed')  { toast('Chưa bật đăng nhập Google trong Firebase.'); return; }
+  if(c==='auth/network-request-failed') { toast('Mạng chập chờn — thử lại nhé.'); return; }
+  toast('Chưa đăng nhập được. Thử lại nhé.');
+}
+function signIn(){
+  if(!fbCtx) return;
+  var au = fbCtx.mod, pv = new au.GoogleAuthProvider();
+  pv.setCustomParameters({ prompt:'select_account' });
+  au.signInWithPopup(fbCtx.auth, pv).catch(function(e){
+    var c = (e && e.code) || '';
+    /* Điện thoại hay chặn cửa sổ bật lên — chuyển sang cách chuyển trang. */
+    if(c==='auth/popup-blocked' || c==='auth/operation-not-supported-in-this-environment'){
+      try{ au.signInWithRedirect(fbCtx.auth, pv); return; }catch(e2){}
+    }
+    authErr(e);
+  });
+}
+function signOutNow(){
+  if(!fbCtx) return;
+  fbCtx.mod.signOut(fbCtx.auth).catch(function(){ toast('Chưa đăng xuất được.'); });
+}
+
+/* Theo dõi chủ sổ. owners rỗng = sổ chưa ai nhận. */
+function watchOwners(){
+  var f = fbCtx.fs;
+  f.onSnapshot(f.doc(fbCtx.db, 'books/'+fbCtx.id), function(snap){
+    var d = snap.exists() ? (snap.data()||{}) : {};
+    bookOwners = (d.owners && typeof d.owners === 'object') ? d.owners : {};
+    paintSync(); refreshAccount();
+  }, function(){ bookOwners = bookOwners || {}; paintSync(); });
+}
+function claimBook(){
+  if(!fbCtx || !fbUser) return;
+  var f = fbCtx.fs, own = {}; own[fbUser.uid] = true;
+  f.setDoc(f.doc(fbCtx.db,'books/'+fbCtx.id), { owners:own }, { merge:true })
+   .then(function(){ return rememberBook(fbCtx.id); })
+   .then(function(){ toast('Sổ này đã thuộc tài khoản của chị.'); refreshAccount(); })
+   .catch(function(){ toast('Chưa nhận được sổ — thử lại nhé.'); });
+}
+/* Ghi nhớ sổ vào tài khoản, để máy mới đăng nhập là tìm lại được, không cần quét mã. */
+function rememberBook(id){
+  if(!fbCtx || !fbUser) return Promise.resolve();
+  var f = fbCtx.fs;
+  return f.setDoc(f.doc(fbCtx.db,'users/'+fbUser.uid), { books: f.arrayUnion(id) }, { merge:true })
+          .then(loadMyBooks, function(){});
+}
+function loadMyBooks(){
+  if(!fbCtx || !fbUser){ myBooks = []; return Promise.resolve(); }
+  var f = fbCtx.fs;
+  return f.getDoc(f.doc(fbCtx.db,'users/'+fbUser.uid)).then(function(snap){
+    var d = snap.exists() ? (snap.data()||{}) : {};
+    myBooks = Array.isArray(d.books) ? d.books : [];
+  }, function(){ myBooks = []; });
+}
+/* Đổi sổ = tải lại trang với mã sổ mới, cho mọi thứ nối lại từ đầu cho chắc.
+   Bản trên máy là của sổ cũ nên phải bỏ, tránh số liệu hai sổ trộn vào nhau. */
+function openBook(id){
+  if(!id || !fbCtx || id === fbCtx.id) return;
+  if(!bookIsEmpty() && !window.confirm('Chuyển sang sổ khác? Số liệu sổ này đã lưu trên cloud, mở lại bằng link cũ vẫn còn.')) return;
+  try{ localStorage.setItem(BOOK_KEY, id); }catch(e){}
+  try{ localStorage.removeItem(LS_KEY); }catch(e){}
+  try{ localStorage.removeItem(CUR_KEY); }catch(e){}
+  location.hash = 's=' + id;
+  location.reload();
+}
+function onUser(u){
+  fbUser = u || null;
+  paintSync();
+  if(!fbUser){ myBooks = []; refreshAccount(); return; }
+  loadMyBooks().then(function(){
+    /* Máy mới tinh: vừa sinh sổ trắng mà tài khoản đã có sổ cũ → mở thẳng sổ cũ. */
+    if(bookIsNew && myBooks.length && myBooks.indexOf(fbCtx.id) < 0 && bookIsEmpty()){
+      if(myBooks.length === 1){ openBook(myBooks[0]); return; }
+      toast('Tài khoản này có '+myBooks.length+' sổ — bấm nhãn Đồng bộ để chọn.');
+    }
+    refreshAccount();
+  });
+}
+function refreshAccount(){ if(acctOpen) openAccount(); }
+
+function openAccount(){
+  if(!fbCtx){
+    var msg = mode==='cloud'
+      ? 'Sổ này lưu theo tài khoản Claude của chị. Mở bằng tài khoản đó ở máy nào cũng thấy đủ số liệu.'
+      : 'Sổ đang lưu trong trình duyệt của máy này. Xoá dữ liệu trình duyệt là mất, nên cuối tháng nhớ copy bảng kê giữ lại.';
+    openModal('Sổ này lưu ở đâu',
+      '<p class="hint">'+msg+'</p>'
+    + '<div class="modal-foot"><button class="btn primary" id="aClose">Đóng</button></div>',
+      function(root){ acctOpen = true; root.querySelector('#aClose').addEventListener('click', closeModal); });
+    return;
+  }
+
+  var mine = iOwnBook(), taken = bookClaimed(), html = '';
+
+  if(fbUser){
+    var nm = String(fbUser.displayName||'').trim() || shortName(fbUser) || 'Tài khoản';
+    html += '<div class="acct"><span class="av">'+esc(nm.slice(0,1).toUpperCase())+'</span>'
+         +  '<span class="ai"><span class="an">'+esc(nm)+'</span>'
+         +  '<span class="ae">'+esc(String(fbUser.email||''))+'</span></span>'
+         +  '<button class="btn sm" id="aOut" type="button">Đăng xuất</button></div>';
+  }else{
+    html += '<p class="hint">'+(taken
+            ? 'Sổ đang mở đã có chủ. Đăng nhập bằng tài khoản chủ sổ thì mới xem được.'
+            : 'Đăng nhập để sổ gắn với tài khoản của chị. Máy mới chỉ cần đăng nhập là thấy đủ số liệu, không phải quét mã.')+'</p>'
+         +  '<button class="btn primary full" id="aIn" type="button" style="margin-top:9px">Đăng nhập bằng Google</button>';
+  }
+
+  if(fbUser){
+    if(mine){
+      html += '<p class="hint" style="margin-top:12px">Sổ đang mở thuộc tài khoản này. Người khác cầm link cũng không mở được.</p>';
+    }else if(taken){
+      html += '<div class="field" style="margin-top:12px"><label>Sổ của tài khoản khác</label>'
+           +  '<p class="hint">Sổ đang mở đã có chủ. Chị đăng nhập đúng tài khoản đó, hoặc chọn một sổ của mình ở dưới.</p></div>';
+    }else{
+      html += '<div class="field" style="margin-top:12px"><label>Sổ này chưa có chủ</label>'
+           +  '<p class="hint">Nhận sổ về tài khoản thì từ đó chỉ tài khoản này mở được. Ai cầm link mà không đăng nhập sẽ không xem được nữa.</p>'
+           +  '<button class="btn primary full" id="aClaim" type="button">Nhận sổ này về tài khoản</button></div>';
+    }
+  }
+
+  if(fbUser && myBooks.length){
+    html += '<div class="field" style="margin-top:12px"><label>Sổ của chị</label><div class="bklist">';
+    myBooks.forEach(function(id, i){
+      var on = (id === fbCtx.id);
+      html += '<button class="bkrow'+(on?' on':'')+'" type="button" data-book="'+esc(id)+'">'
+           +    '<span>'+(on ? 'Sổ đang mở' : 'Sổ '+(i+1))+'</span>'
+           +    '<span class="bkid">'+esc(id.slice(0,6))+'…</span>'
+           +  '</button>';
+    });
+    html += '</div>'+(myBooks.length>1?'<p class="hint">Bấm để chuyển sang sổ khác.</p>':'')+'</div>';
+  }
+
+  html += '<div class="field" style="margin-top:12px"><label>Mở sổ này trên điện thoại</label>'
+       +  '<p class="hint">'+(taken
+            ? 'Quét mã bằng camera điện thoại, rồi đăng nhập cùng tài khoản trên điện thoại.'
+            : 'Mở camera điện thoại rồi quét mã dưới đây — điện thoại sẽ vào đúng sổ này.')+'</p>'
+       +  '<div class="qrbox"><canvas id="aQR" width="196" height="196" role="img" aria-label="Mã QR để mở sổ này trên điện thoại"></canvas></div>'
+       +  '<div class="linkrow"><input type="text" id="aLink" readonly value="'+esc(bookLink())+'">'
+       +  '<button class="btn sm" id="aCopy" type="button">Chép</button></div>'
+       +  '<p class="hint">'+(taken
+            ? 'Sổ đã có chủ nên chỉ tài khoản chủ sổ mới mở được.'
+            : 'Sổ chưa có chủ — ai cầm link là xem và sửa được, nên đừng đăng công khai.')+'</p></div>'
+       +  '<div class="modal-foot"><button class="btn ghost" id="aClose">Đóng</button></div>';
+
+  openModal('Tài khoản và đồng bộ', html, function(root){
+    acctOpen = true;
+    root.querySelector('#aClose').addEventListener('click', closeModal);
+    var b;
+    if((b = root.querySelector('#aIn')))    b.addEventListener('click', signIn);
+    if((b = root.querySelector('#aOut')))   b.addEventListener('click', signOutNow);
+    if((b = root.querySelector('#aClaim'))) b.addEventListener('click', claimBook);
+    Array.prototype.slice.call(root.querySelectorAll('[data-book]')).forEach(function(x){
+      x.addEventListener('click', function(){ openBook(x.getAttribute('data-book')); });
+    });
+    drawQR(root.querySelector('#aQR'), bookLink());
+    root.querySelector('#aCopy').addEventListener('click', function(){
+      copyField(root.querySelector('#aLink'), 'Đã chép link. Dán vào trình duyệt điện thoại nhé.');
+    });
+  });
+}
+/* chép nội dung một ô input, dùng chung cho link sổ */
+function copyField(f, okMsg){
+  if(!f) return;
+  f.select(); f.setSelectionRange(0, 999);
+  var done = function(){ toast(okMsg); };
+  var hand = function(){ try{ document.execCommand('copy'); done(); }catch(e){ toast('Chưa chép được — chị bấm giữ để chép tay nhé.'); } };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(f.value).then(done, hand);
+  else hand();
 }
 
 /* --- bảng kê --- */
@@ -1619,6 +1840,7 @@ document.getElementById('peopleBar').addEventListener('keydown', function(e){
   e.preventDefault(); peopleBarHit(e.target);
 });
 
+document.getElementById('syncPill').addEventListener('click', openAccount);
 document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnPay').addEventListener('click', function(){ openPay(null); });
 document.getElementById('btnCopy').addEventListener('click', openStatement);
@@ -1630,7 +1852,8 @@ paintSync();
 paintAll();
 
 /* ============ mã sổ (dùng cho bản Firebase) ============ */
-var BOOK_KEY = 'sokong-book-id';
+var BOOK_KEY  = 'sokong-book-id';
+var bookIsNew = false;      // sổ vừa sinh ra trong lần mở này — máy mới tinh
 function newBookId(){
   var s='', abc='abcdefghijklmnopqrstuvwxyz0123456789';
   var r = (window.crypto && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(26)) : null;
@@ -1641,7 +1864,7 @@ function bookId(){
   var m = /[#&?]s=([a-z0-9]{20,64})/i.exec(location.hash + '&' + location.search);
   var id = m ? m[1].toLowerCase() : '';
   if(!id){ try{ id = localStorage.getItem(BOOK_KEY) || ''; }catch(e){} }
-  if(!id) id = newBookId();
+  if(!id){ id = newBookId(); bookIsNew = true; }
   try{ localStorage.setItem(BOOK_KEY, id); }catch(e){}
   if(location.hash.indexOf('s='+id) < 0){
     try{ history.replaceState(null, '', location.pathname + location.search + '#s=' + id); }catch(e){}
@@ -1761,7 +1984,15 @@ else if(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId){
       var app = mods[0].initializeApp(window.FIREBASE_CONFIG);
       var fs  = mods[1];
       var db  = fs.getFirestore(app);
-      wireCloud(firestoreCloud(fs, db, 'books/'+bookId()), 'cloud');
+      var id  = bookId();
+      wireCloud(firestoreCloud(fs, db, 'books/'+id), 'cloud');
+      /* Đăng nhập tải riêng: tải hụt thì sổ vẫn chạy theo link như trước. */
+      return import(FB+'firebase-auth.js').then(function(au){
+        fbCtx = { fs:fs, db:db, mod:au, auth:au.getAuth(app), id:id };
+        watchOwners();
+        au.onAuthStateChanged(fbCtx.auth, onUser);
+        au.getRedirectResult(fbCtx.auth).catch(authErr);
+      }, function(){});
     })
     .catch(function(e){ cloudErr(e); });
 }
