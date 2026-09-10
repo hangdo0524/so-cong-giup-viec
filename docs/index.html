@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0e1a15">
 <meta name="description" content="Sổ chấm công giúp việc theo giờ: số buổi, hệ số lễ/cận Tết, nhận xét và lịch sử trả lương.">
 <style>*{box-sizing:border-box}html,body{margin:0}body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f8f6}img{max-width:100%}[hidden]{display:none!important}</style>
-<script src="firebase-config.js?v=20260910112630"></script>
+<script src="firebase-config.js?v=20260910114318"></script>
 <title>Sổ Công Giúp Việc</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -432,6 +432,14 @@ table.ov tbody tr.cur td:first-child::after{content:' · đang xem';font-family:
 .hint{font-size:11.5px;color:var(--muted);line-height:1.45}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.authwarn{
+  margin-top:10px;border:1px solid var(--red);background:var(--red-soft);
+  border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.55;color:var(--ink-2);
+}
+.authwarn>b{display:block;color:var(--red-mark);margin-bottom:4px}
+.authwarn p{margin:0}
+.authwarn p+p{margin-top:7px}
+.authwarn .small{font-size:11.5px;color:var(--muted)}
 .three>.field>label{text-transform:none;letter-spacing:0;white-space:nowrap;font-weight:500}
 
 .opts{display:flex;gap:6px;flex-wrap:wrap}
@@ -1771,24 +1779,33 @@ function openSettings(){
 /* Sổ gắn với tài khoản: ai nhận sổ trước thì sổ thuộc về tài khoản đó.
    Sổ chưa ai nhận vẫn mở được bằng link như cũ, để không ai bị khoá ngoài sổ của mình. */
 var acctOpen = false;
+var authFail  = '';   /* lỗi đăng nhập gần nhất, để hiện hướng dẫn trong bảng Tài khoản */
 
-function authErr(e){
+function authErr(e, quiet){
   var c = (e && e.code) || '';
   if(c==='auth/popup-closed-by-user' || c==='auth/cancelled-popup-request') return;
-  if(c==='auth/unauthorized-domain')    { toast('Địa chỉ web này chưa được cho phép trong Firebase.'); return; }
-  if(c==='auth/operation-not-allowed')  { toast('Chưa bật đăng nhập Google trong Firebase.'); return; }
   if(c==='auth/network-request-failed') { toast('Mạng chập chờn — thử lại nhé.'); return; }
-  toast('Chưa đăng nhập được. Thử lại nhé.');
+  /* Ba lỗi dưới đây đều là chưa bật/chưa khai trong Firebase Console, không phải lỗi máy chị.
+     Nhớ lại để bảng Tài khoản chỉ luôn cần bấm ở đâu. */
+  if(c==='auth/configuration-not-found' || c==='auth/operation-not-allowed' || c==='auth/unauthorized-domain'){
+    authFail = c; refreshAccount();
+    if(!quiet) toast(c==='auth/unauthorized-domain' ? 'Địa chỉ web này chưa được cho phép trong Firebase.'
+                                                    : 'Chưa bật đăng nhập Google trong Firebase.');
+    return;
+  }
+  authFail = c || 'unknown'; refreshAccount();
+  if(!quiet) toast('Chưa đăng nhập được. Thử lại nhé.');
 }
 function signIn(){
   if(!fbCtx) return;
   var au = fbCtx.mod, pv = new au.GoogleAuthProvider();
   pv.setCustomParameters({ prompt:'select_account' });
-  au.signInWithPopup(fbCtx.auth, pv).catch(function(e){
+  au.signInWithPopup(fbCtx.auth, pv).then(function(){ authFail = ''; }).catch(function(e){
     var c = (e && e.code) || '';
     /* Điện thoại hay chặn cửa sổ bật lên — chuyển sang cách chuyển trang. */
     if(c==='auth/popup-blocked' || c==='auth/operation-not-supported-in-this-environment'){
-      try{ au.signInWithRedirect(fbCtx.auth, pv); return; }catch(e2){}
+      try{ au.signInWithRedirect(fbCtx.auth, pv).catch(authErr); return; }
+      catch(e2){ authErr(e2); return; }
     }
     authErr(e);
   });
@@ -1856,6 +1873,25 @@ function onUser(u){
 }
 function refreshAccount(){ if(acctOpen) openAccount(); }
 
+/* Hướng dẫn cố định khi đăng nhập hỏng vì Firebase chưa khai báo — nói rõ bấm ở đâu,
+   vì mấy lỗi này chỉ chủ project sửa được trên Console chứ app không tự chữa. */
+function authHelp(){
+  var host = location.hostname || '';
+  var body;
+  if(authFail === 'auth/unauthorized-domain')
+    body = 'Firebase chưa cho phép địa chỉ <b>'+esc(host)+'</b>.<br>'
+         + 'Vào <b>Firebase Console → Authentication → Settings → Authorized domains</b> → <b>Add domain</b> → thêm <b>'+esc(host)+'</b>.';
+  else if(authFail === 'auth/configuration-not-found' || authFail === 'auth/operation-not-allowed')
+    body = 'Project Firebase chưa bật phần đăng nhập.<br>'
+         + '1. <b>Firebase Console → Build → Authentication → Get started</b>.<br>'
+         + '2. Tab <b>Sign-in method</b> → chọn <b>Google</b> → bật <b>Enable</b> → chọn email hỗ trợ → <b>Save</b>.<br>'
+         + '3. Tab <b>Settings → Authorized domains</b> → <b>Add domain</b> → thêm <b>'+esc(host)+'</b>.';
+  else
+    body = 'Lỗi: <b>'+esc(authFail)+'</b>. Thử lại, nếu vẫn vậy thì kiểm tra phần Authentication trên Firebase Console.';
+  return '<div class="authwarn"><b>Chưa đăng nhập được</b><p>'+body+'</p>'
+       + '<p class="small">Chưa đăng nhập thì sổ vẫn dùng bình thường — số liệu vẫn lưu server, mở bằng link như cũ.</p></div>';
+}
+
 function openAccount(){
   if(!fbCtx){
     var msg = mode==='cloud'
@@ -1881,6 +1917,7 @@ function openAccount(){
             ? 'Sổ đang mở đã có chủ. Đăng nhập bằng tài khoản chủ sổ thì mới xem được.'
             : 'Đăng nhập để sổ gắn với tài khoản của chị. Máy mới chỉ cần đăng nhập là thấy đủ số liệu, không phải quét mã.')+'</p>'
          +  '<button class="btn primary full" id="aIn" type="button" style="margin-top:9px">Đăng nhập bằng Google</button>';
+    if(authFail) html += authHelp();
   }
 
   if(fbUser){
@@ -2220,7 +2257,7 @@ else if(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId){
         fbCtx = { fs:fs, db:db, mod:au, auth:au.getAuth(app), id:id };
         watchOwners();
         au.onAuthStateChanged(fbCtx.auth, onUser);
-        au.getRedirectResult(fbCtx.auth).catch(authErr);
+        au.getRedirectResult(fbCtx.auth).catch(function(e){ authErr(e, true); });
       }, function(){});
     })
     .catch(function(e){ cloudErr(e); });

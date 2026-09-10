@@ -24,6 +24,9 @@ authors:
   - date: 2026-09-10
     email: "hang.do@difisoft.com"
     change: "Tách giờ công và tiền công thành phần theo hợp đồng miệng và phần phát sinh thêm, mỗi buổi phát sinh có ô ghi lý do; giờ chuẩn tách riêng T7 và CN"
+  - date: 2026-09-10
+    email: "hang.do@difisoft.com"
+    change: "Sửa lỗi bấm đăng nhập Google không thấy phản hồi; báo rõ Firebase còn thiếu bước nào và chỉ chỗ bật"
 ---
 
 # Sổ Công Giúp Việc
@@ -86,6 +89,8 @@ Sổ có hai trạng thái:
 Nhận sổ rồi thì link không còn đủ để mở — điện thoại quét mã QR xong vẫn phải đăng nhập cùng tài khoản. Đổi lại, máy mới chỉ cần đăng nhập là app tự tìm ra sổ (nhờ `users/<uid>`), không cần quét mã.
 
 Sổ chưa ai nhận vẫn mở được bằng link, để không ai bị khoá ngoài sổ của chính mình trong lúc chưa kịp đăng nhập.
+
+Nếu đăng nhập báo lỗi, bảng **Tài khoản và đồng bộ** sẽ hiện luôn còn thiếu bước nào ở trên (`auth/configuration-not-found` = chưa làm bước 6, `auth/unauthorized-domain` = chưa làm bước 7). Chưa đăng nhập được thì sổ vẫn chạy bình thường bằng link như cũ.
 
 **Thứ tự triển khai** (đổi rules trước là tự khoá mình ra ngoài):
 
